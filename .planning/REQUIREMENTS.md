@@ -94,8 +94,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCRP-01 | Phase 2 | Pending |
 | SCRP-02 | Phase 2 | Complete (2-03) |
 | SCRP-03 | Phase 2 | Pending |
-| SCRP-04 | Phase 2 | Pending |
-| SCRP-05 | Phase 2 | Pending |
+| SCRP-04 | Phase 2 | Complete (2-02) |
+| SCRP-05 | Phase 2 | Complete (2-02) |
 | SCRP-06 | Phase 2 | In Progress (upsert logic built, 2-01) |
 | SRCH-01 | Phase 3 | Pending |
 | SRCH-02 | Phase 3 | Pending |
