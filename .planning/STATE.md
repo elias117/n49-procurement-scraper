@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 1 of 5 (Infrastructure)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-24 — Roadmap created (5 phases, 30/30 requirements mapped)
+Plan: 1 of 1 in current phase (paused at checkpoint)
+Status: Paused — plan 01 tasks 1-4 complete, awaiting Task 5 (human-verify: EC2 deploy)
+Last activity: 2026-02-24 — Phase 1 tasks 1-4 executed successfully
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [########░░] 80% (4/5 tasks in plan 01)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
+- Total plans completed: 0 (plan 01 in progress, 4/5 tasks done)
 - Average duration: -
-- Total execution time: 0 hours
+- Total execution time: ~7 min (tasks 1-4)
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1 | 0/1 (in progress) | 398s | - |
 
 **Recent Trend:**
-- Last 5 plans: none yet
+- Last 5 plans: 1-01 (in progress, 4/5 tasks)
 - Trend: -
 
 *Updated after each plan completion*
@@ -47,6 +47,9 @@ Recent decisions affecting current work:
 - [Pre-phase]: Single EC2 + Docker Compose — simple and cheap for internal tool
 - [Pre-phase]: APScheduler over Celery — no broker needed for a single nightly batch
 - [Pre-phase]: text-embedding-3-small locked as embedding model — model changes require full re-indexing
+- [Phase 1]: Stub services for Phase 1 — scraper sleeps, web returns JSON health endpoint
+- [Phase 1]: Terraform lock file committed for reproducible provider versions
+- [Phase 1]: Port 443 verified as production-only concern (EC2 target)
 
 ### Pending Todos
 
@@ -61,5 +64,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Roadmap created and committed — ready to plan Phase 1
-Resume file: None
+Stopped at: Phase 1 Plan 01 — Tasks 1-4 complete, paused before Task 5 (checkpoint:human-verify for EC2 deployment)
+Resume file: .planning/phases/1/1-01-SUMMARY.md
