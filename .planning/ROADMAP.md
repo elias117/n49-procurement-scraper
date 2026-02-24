@@ -12,7 +12,7 @@ Five phases build the platform in strict dependency order: infrastructure and sc
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Infrastructure** - Provision EC2, Docker Compose scaffold, PostgreSQL schema, Nginx/TLS — the foundation everything else builds on
+- [x] **Phase 1: Infrastructure** - Provision EC2, Docker Compose scaffold, PostgreSQL schema, Nginx/TLS — the foundation everything else builds on
 - [x] **Phase 2: Scraper Pipeline** - Browser-use + instructor extraction pipeline that populates listings across all 63 portals
 - [ ] **Phase 3: Search Layer** - Hybrid keyword + semantic search API with full filter suite and Reciprocal Rank Fusion ranking
 - [ ] **Phase 4: Web Application** - Next.js dashboard with auth, search UI, listing detail, and scraper health page
@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. HTTPS resolves at procurement.eliastools.com with valid TLS certificate, and HTTP redirects to HTTPS
 **Plans**: 1 plan
 Plans:
-- [ ] 1-01-PLAN.md — Full infrastructure: Docker Compose scaffold, PostgreSQL schema + portal seed, Terraform AWS provisioning, EC2 deployment with TLS
+- [x] 1-01-PLAN.md — Full infrastructure: Docker Compose scaffold, PostgreSQL schema + portal seed, Terraform AWS provisioning, EC2 deployment with TLS
 
 ### Phase 2: Scraper Pipeline
 **Goal**: The scraper runs manually against all 63 portals, populates listings into PostgreSQL with valid structured fields and embeddings, and logs per-portal audit data — ready to be queried.
@@ -92,7 +92,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure | 0/1 (4/5 tasks) | In Progress | - |
+| 1. Infrastructure | 1/1 | Complete | 2026-02-24 |
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
 | 3. Search Layer | 0/TBD | Not started | - |
 | 4. Web Application | 0/TBD | Not started | - |
