@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** The BD team can search all 63 government procurement portals from one place, using both precise filters and natural language, and find relevant opportunities they would otherwise miss.
-**Current focus:** Phase 2 - Scraper Pipeline (EXECUTING)
+**Current focus:** Phase 2 - Scraper Pipeline (COMPLETE)
 
 ## Current Position
 
-Phase: 2 of 5 (Scraper Pipeline) — EXECUTING (checkpoint pending)
-Plan: 2-04 of 4 in current phase (Wave 3)
-Status: Plan 2-04 Tasks 1-2 complete — Task 3 (live benchmark) is human-verify checkpoint
-Last activity: 2026-02-24 — Plan 2-04 orchestrator and CLI complete
+Phase: 2 of 5 (Scraper Pipeline) — COMPLETE
+Plan: 4 of 4 complete
+Status: Phase 2 complete — benchmark approved, ready for Phase 3
+Last activity: 2026-02-24 — Live benchmark approved (897 listings, embeddings, upsert idempotency verified)
 
-Progress: [=========.] 91% (10/11 tasks across 4 plans)
+Progress: [==========] 100% (11/11 tasks across 4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5 (4 fully complete + 2-04 Tasks 1-2 done, Task 3 pending)
+- Total plans completed: 5
 - Average duration: ~6 min
-- Total execution time: ~33 min
+- Total execution time: ~35 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 1/1 | ~15min | ~15min |
-| 2 | 4/4 (T3 pending) | ~18min | ~4.5min |
+| 2 | 4/4 | ~20min | ~5min |
 
 **Recent Trend:**
-- Last 5 plans: 1-01 (complete), 2-01 (complete), 2-02 (complete), 2-03 (complete), 2-04 (Tasks 1-2 done)
+- Last 5 plans: 1-01 (complete), 2-01 (complete), 2-02 (complete), 2-03 (complete), 2-04 (complete)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -66,6 +66,9 @@ Recent decisions affecting current work:
 - [Phase 2]: Sequential portal processing (not parallel) for 4GB container memory constraint
 - [Phase 2]: classify_portal uses name match for CanadaBuys, URL match for BidsAndTenders, fallback to browser
 - [Phase 2]: sys.path fix in main.py for Docker CMD direct invocation compatibility
+- [Phase 2]: User-Agent header required for CanadaBuys CSV download (403 without it)
+- [Phase 2]: JSONB columns need ::jsonb cast in upsert CTE input_rows
+- [Phase 2]: execute_values returns rows directly (not via fetchone) when fetch=True
 
 ### Pending Todos
 
@@ -74,11 +77,11 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 2]: ~~Investigate CanadaBuys API~~ RESOLVED: CanadaBuys has structured CSV open data files — zero-cost ingestion path via direct download
-- [Phase 2]: Benchmark LLM API cost on 5 representative portals before enabling all 63 — addressed by Plan 2-04 Task 3 (live benchmark checkpoint)
+- [Phase 2]: ~~Benchmark LLM API cost on 5 representative portals~~ RESOLVED: 897 CanadaBuys listings embedded for ~$0.008 (385K tokens). Embedding cost is negligible.
 - [Phase 2]: Audit robots.txt compliance — deferred to execution, robots.txt check recommended but not blocking
 
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Plan 2-04 Tasks 1-2 complete, Task 3 (live benchmark) is human-verify checkpoint
-Resume file: .planning/phases/2/2-04-PLAN.md (Task 3)
+Stopped at: Phase 2 complete — ready for Phase 3
+Resume file: .planning/ROADMAP.md (Phase 3)

@@ -13,7 +13,7 @@ Five phases build the platform in strict dependency order: infrastructure and sc
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Infrastructure** - Provision EC2, Docker Compose scaffold, PostgreSQL schema, Nginx/TLS — the foundation everything else builds on
-- [ ] **Phase 2: Scraper Pipeline** - Browser-use + instructor extraction pipeline that populates listings across all 63 portals
+- [x] **Phase 2: Scraper Pipeline** - Browser-use + instructor extraction pipeline that populates listings across all 63 portals
 - [ ] **Phase 3: Search Layer** - Hybrid keyword + semantic search API with full filter suite and Reciprocal Rank Fusion ranking
 - [ ] **Phase 4: Web Application** - Next.js dashboard with auth, search UI, listing detail, and scraper health page
 - [ ] **Phase 5: Scheduling and Hardening** - Nightly cron automation, CloudWatch alerting, per-portal yield monitoring, production Docker hardening
@@ -48,7 +48,7 @@ Plans:
 - [x] 2-01-PLAN.md — Foundation: Pydantic models, config, DB helpers (upsert, audit), test infrastructure
 - [x] 2-02-PLAN.md — Validation, CanadaBuys CSV ingestion, embedding generation
 - [x] 2-03-PLAN.md — LLM extraction (instructor + GPT-4o-mini), BidsAndTenders and generic browser scrapers
-- [x] 2-04-PLAN.md — Orchestrator, CLI entrypoint, 5-portal live benchmark (Tasks 1-2 done, Task 3 pending human verify)
+- [x] 2-04-PLAN.md — Orchestrator, CLI entrypoint, 5-portal live benchmark (approved)
 
 ### Phase 3: Search Layer
 **Goal**: A validated search API supports hybrid keyword + semantic queries with the full filter suite, returning correctly ranked results from real listing data.
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 0/1 (4/5 tasks) | In Progress | - |
-| 2. Scraper Pipeline | 4/4 (10/11 tasks, T3 pending) | In Progress | - |
+| 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
 | 3. Search Layer | 0/TBD | Not started | - |
 | 4. Web Application | 0/TBD | Not started | - |
 | 5. Scheduling and Hardening | 0/TBD | Not started | - |

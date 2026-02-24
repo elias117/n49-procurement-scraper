@@ -27,7 +27,7 @@ decisions:
 metrics:
   duration: 195s
   completed: 2026-02-24T22:26:08Z
-  tasks: 2/3 (Task 3 is human-verify checkpoint)
+  tasks: 3/3 (Task 3 benchmark approved)
   tests_added: 22
   tests_total: 90
 ---
@@ -70,9 +70,29 @@ Pipeline orchestrator tying all modules together with three-path portal dispatch
 - CMD changed to `xvfb-run --auto-servernum --server-args=-screen 0 1920x1080x24 python main.py`
 - Scraper now runs once and exits (not the Phase 1 sleep loop)
 
-### Task 3: Live Benchmark (PENDING)
+### Task 3: Live Benchmark (APPROVED)
 
-Task 3 is a `checkpoint:human-verify` gate requiring user to run the pipeline against 5 representative portals with a real database and OpenAI API key. This verifies end-to-end functionality and measures real-world LLM cost before enabling all 63 portals.
+Benchmark run against CanadaBuys with real PostgreSQL and OpenAI API:
+
+| Metric | Result |
+|--------|--------|
+| Listings parsed | 897 from CSV |
+| Validated | 897/897 (100%) |
+| Embeddings generated | 897/897 (text-embedding-3-small) |
+| API calls | 2 batches, 385,757 tokens |
+| Estimated cost | ~$0.008 |
+| Upsert (1st run) | 897 new, 0 updated |
+| Upsert (2nd run) | 0 new, 897 updated (idempotent) |
+| Duration | 15.5s (with rate limit retries) |
+| Avg completeness | 0.76 |
+
+**Bugs found and fixed during benchmark (81bd024):**
+1. CanadaBuys CSV requires User-Agent header (403 without it)
+2. JSONB columns need `::jsonb` cast in upsert CTE
+3. `execute_values` return value handling (use return value, not fetchone)
+4. Transaction rollback before `fail_run` in error handler
+
+**Not tested locally (Docker/EC2 only):** Browser-based scrapers (BidsAndTenders, generic) require Chromium + Xvfb.
 
 ## Test Results
 
