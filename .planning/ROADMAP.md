@@ -27,9 +27,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Success Criteria** (what must be TRUE):
   1. `docker compose up` on EC2 starts all services (PostgreSQL + pgvector, scraper container, Next.js app, Nginx) without errors
   2. PostgreSQL schema contains all tables (listings, portals, scrape_runs) with HNSW index, tsvector GIN index, TIMESTAMPTZ columns, and (source_portal, source_listing_id) composite unique constraint
-  3. Terraform apply provisions EC2 in ca-central-1 with remote state stored in S3, and `terraform plan` shows no drift after apply
+  3. Terraform apply provisions EC2 in ca-central-1 — `terraform plan` shows no drift after apply (NOTE: local state, NOT S3 remote state — user override)
   4. HTTPS resolves at procurement.eliastools.com with valid TLS certificate, and HTTP redirects to HTTPS
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 1-01-PLAN.md — Full infrastructure: Docker Compose scaffold, PostgreSQL schema + portal seed, Terraform AWS provisioning, EC2 deployment with TLS
 
 ### Phase 2: Scraper Pipeline
 **Goal**: The scraper runs manually against all 63 portals, populates listings into PostgreSQL with valid structured fields and embeddings, and logs per-portal audit data — ready to be queried.
@@ -85,7 +87,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure | 0/TBD | Not started | - |
+| 1. Infrastructure | 0/1 | Planned | - |
 | 2. Scraper Pipeline | 0/TBD | Not started | - |
 | 3. Search Layer | 0/TBD | Not started | - |
 | 4. Web Application | 0/TBD | Not started | - |
