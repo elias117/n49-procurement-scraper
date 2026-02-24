@@ -2,10 +2,18 @@ FROM mcr.microsoft.com/playwright/python:v1.51.0-noble
 
 WORKDIR /app
 
+# Install Xvfb for non-headless Chromium in Docker
+# POC confirmed: headless=True gets 403-blocked by procurement portals
+RUN apt-get update && apt-get install -y xvfb && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Ensure Chromium is installed (may already be in base image)
+RUN playwright install chromium
+
 COPY . .
 
-# Stub: just keep the container running for Phase 1
-CMD ["python", "main.py"]
+# Run scraper with Xvfb virtual framebuffer
+# Chromium runs in non-headless mode inside the virtual display
+CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1920x1080x24", "python", "main.py"]
