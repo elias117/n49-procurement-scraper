@@ -9,29 +9,29 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 ## Current Position
 
-Phase: 2 of 5 (Scraper Pipeline) — EXECUTING
-Plan: 2-04 of 4 in current phase (Wave 2)
-Status: Plan 2-03 complete — ready for Plan 2-04
-Last activity: 2026-02-24 — Plan 2-03 extraction and browser scrapers complete
+Phase: 2 of 5 (Scraper Pipeline) — EXECUTING (checkpoint pending)
+Plan: 2-04 of 4 in current phase (Wave 3)
+Status: Plan 2-04 Tasks 1-2 complete — Task 3 (live benchmark) is human-verify checkpoint
+Last activity: 2026-02-24 — Plan 2-04 orchestrator and CLI complete
 
-Progress: [=======...] 73% (8/11 tasks across 4 plans)
+Progress: [=========.] 91% (10/11 tasks across 4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: ~8 min
-- Total execution time: ~30 min
+- Total plans completed: 5 (4 fully complete + 2-04 Tasks 1-2 done, Task 3 pending)
+- Average duration: ~6 min
+- Total execution time: ~33 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 1/1 | ~15min | ~15min |
-| 2 | 3/4 | ~15min | ~5min |
+| 2 | 4/4 (T3 pending) | ~18min | ~4.5min |
 
 **Recent Trend:**
-- Last 5 plans: 1-01 (complete), 2-01 (complete), 2-02 (complete), 2-03 (complete)
+- Last 5 plans: 1-01 (complete), 2-01 (complete), 2-02 (complete), 2-03 (complete), 2-04 (Tasks 1-2 done)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -62,6 +62,10 @@ Recent decisions affecting current work:
 - [Phase 2]: Lazy imports for browser-use in scraper modules (Python 3.9 dev vs 3.11+ Docker runtime)
 - [Phase 2]: Two-layer retry: instructor max_retries for validation, tenacity for rate limits/connection errors
 - [Phase 2]: Browser page access fallback: current_page then context.pages for browser-use version compatibility
+- [Phase 2]: Per-portal error isolation with try/except in process_portal (failed portal returns error dict)
+- [Phase 2]: Sequential portal processing (not parallel) for 4GB container memory constraint
+- [Phase 2]: classify_portal uses name match for CanadaBuys, URL match for BidsAndTenders, fallback to browser
+- [Phase 2]: sys.path fix in main.py for Docker CMD direct invocation compatibility
 
 ### Pending Todos
 
@@ -76,5 +80,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 2-03-PLAN.md
-Resume file: .planning/phases/2/2-04-PLAN.md
+Stopped at: Plan 2-04 Tasks 1-2 complete, Task 3 (live benchmark) is human-verify checkpoint
+Resume file: .planning/phases/2/2-04-PLAN.md (Task 3)
