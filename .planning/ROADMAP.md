@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 0/1 (4/5 tasks) | In Progress | - |
-| 2. Scraper Pipeline | 1/4 (3/11 tasks) | In Progress | - |
+| 2. Scraper Pipeline | 3/4 (8/11 tasks) | In Progress | - |
 | 3. Search Layer | 0/TBD | Not started | - |
 | 4. Web Application | 0/TBD | Not started | - |
 | 5. Scheduling and Hardening | 0/TBD | Not started | - |

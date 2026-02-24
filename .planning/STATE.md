@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 2 of 5 (Scraper Pipeline) — EXECUTING
-Plan: 2-02 of 4 in current phase (Wave 1)
-Status: Plan 2-01 complete — ready for Plan 2-02
-Last activity: 2026-02-24 — Plan 2-01 foundation layer complete
+Plan: 2-04 of 4 in current phase (Wave 2)
+Status: Plan 2-03 complete — ready for Plan 2-04
+Last activity: 2026-02-24 — Plan 2-03 extraction and browser scrapers complete
 
-Progress: [===.......] 27% (3/11 tasks across 4 plans)
+Progress: [=======...] 73% (8/11 tasks across 4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: ~10 min
-- Total execution time: ~20 min
+- Total plans completed: 4
+- Average duration: ~8 min
+- Total execution time: ~30 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 1/1 | ~15min | ~15min |
-| 2 | 1/4 | ~5min | ~5min |
+| 2 | 3/4 | ~15min | ~5min |
 
 **Recent Trend:**
-- Last 5 plans: 1-01 (complete), 2-01 (complete)
+- Last 5 plans: 1-01 (complete), 2-01 (complete), 2-02 (complete), 2-03 (complete)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -57,6 +57,11 @@ Recent decisions affecting current work:
 - [Phase 2]: psycopg2 direct connections, no pool needed for sequential batch processing
 - [Phase 2]: xmax=0 trick in RETURNING clause to distinguish new vs updated upsert rows
 - [Phase 2]: Embedding vectors passed as string format '[0.1, 0.2, ...]' for pgvector compatibility
+- [Phase 2]: BOM stripping added defensively in _parse_csv as well as in httpx utf-8-sig decoding
+- [Phase 2]: Lazy tiktoken encoder initialization to avoid import-time overhead
+- [Phase 2]: Lazy imports for browser-use in scraper modules (Python 3.9 dev vs 3.11+ Docker runtime)
+- [Phase 2]: Two-layer retry: instructor max_retries for validation, tenacity for rate limits/connection errors
+- [Phase 2]: Browser page access fallback: current_page then context.pages for browser-use version compatibility
 
 ### Pending Todos
 
@@ -71,5 +76,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 2-01-PLAN.md
-Resume file: .planning/phases/2/2-02-PLAN.md
+Stopped at: Completed 2-03-PLAN.md
+Resume file: .planning/phases/2/2-04-PLAN.md

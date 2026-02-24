@@ -10,10 +10,10 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Scraping & Extraction
 
 - [ ] **SCRP-01**: Scraper pipeline runs nightly against all 63 mapped Canadian government procurement portals
-- [ ] **SCRP-02**: AI-powered extraction produces structured fields per listing: title, description, posting date, closing date, source portal, classification codes (NAICS/UNSPSC/GSIN), category, region/province, estimated contract value, budget range, contact info, document/PDF links, amendment history
+- [x] **SCRP-02**: AI-powered extraction produces structured fields per listing: title, description, posting date, closing date, source portal, classification codes (NAICS/UNSPSC/GSIN), category, region/province, estimated contract value, budget range, contact info, document/PDF links, amendment history
 - [ ] **SCRP-03**: Each scrape run logs per-portal results (success/fail, listing count, duration) to a scrape_runs audit table
-- [ ] **SCRP-04**: Post-extraction validation rejects listings with invalid data (closing_date < posting_date, values outside plausible range, missing required fields)
-- [ ] **SCRP-05**: Embeddings generated at insert time using text-embedding-3-small for every listing's title + description
+- [x] **SCRP-04**: Post-extraction validation rejects listings with invalid data (closing_date < posting_date, values outside plausible range, missing required fields)
+- [x] **SCRP-05**: Embeddings generated at insert time using text-embedding-3-small for every listing's title + description
 - [ ] **SCRP-06**: Listings upserted on (source_portal, source_listing_id) composite key to handle updates without duplicates
 
 ### Search & Filtering
@@ -92,7 +92,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SCRP-01 | Phase 2 | Pending |
-| SCRP-02 | Phase 2 | Pending |
+| SCRP-02 | Phase 2 | Complete (2-03) |
 | SCRP-03 | Phase 2 | Pending |
 | SCRP-04 | Phase 2 | Pending |
 | SCRP-05 | Phase 2 | Pending |
