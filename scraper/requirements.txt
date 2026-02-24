@@ -1,0 +1,2 @@
+# Phase 1: stub only. Full dependencies added in Phase 2.
+psycopg2-binary==2.9.10
