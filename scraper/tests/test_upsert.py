@@ -98,13 +98,10 @@ class TestUpsertListings:
             ),
         ]
 
-        # Setup mock cursor to return stats
-        mock_cursor = mock_db_connection._mock_cursor
-        mock_cursor.fetchone.return_value = {
-            "total": 2,
-            "new_count": 2,
-            "updated_count": 0,
-        }
+        # Setup mock execute_values to return stats (now returns rows directly)
+        mock_execute_values.return_value = [
+            {"total": 2, "new_count": 2, "updated_count": 0}
+        ]
 
         result = upsert_listings(mock_db_connection, portal_id, listings)
 

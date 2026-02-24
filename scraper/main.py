@@ -78,6 +78,11 @@ def main():
         action="store_true",
         help="List all portals with enabled status",
     )
+    parser.add_argument(
+        "--skip-embeddings",
+        action="store_true",
+        help="Skip embedding generation (useful when OpenAI quota is unavailable)",
+    )
     args = parser.parse_args()
 
     if args.list_portals:
@@ -90,7 +95,12 @@ def main():
     logger.info("=" * 60)
 
     try:
-        results = asyncio.run(run_pipeline(portal_name=args.portal))
+        results = asyncio.run(
+            run_pipeline(
+                portal_name=args.portal,
+                skip_embeddings=args.skip_embeddings,
+            )
+        )
     except KeyboardInterrupt:
         logger.info("Pipeline interrupted by user")
         sys.exit(1)

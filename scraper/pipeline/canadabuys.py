@@ -104,8 +104,14 @@ async def canadabuys_ingest(portal: PortalRecord) -> list[ListingRecord]:
         httpx.HTTPError: If the CSV download fails.
     """
     try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+        }
         async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.get(CANADABUYS_CSV_URL)
+            response = await client.get(CANADABUYS_CSV_URL, headers=headers)
             response.raise_for_status()
     except httpx.HTTPError as exc:
         raise httpx.HTTPError(

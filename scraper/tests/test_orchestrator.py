@@ -442,7 +442,7 @@ class TestRunPipeline:
             run_pipeline(portal_name="CanadaBuys")
         )
 
-        mock_process.assert_called_once_with(mock_conn, portal)
+        mock_process.assert_called_once_with(mock_conn, portal, skip_embeddings=False)
         assert len(result) == 1
         assert "CanadaBuys" in result
 

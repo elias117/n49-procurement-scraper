@@ -67,7 +67,9 @@ async def scrape_portal(portal: PortalRecord) -> list:
         return await browser_scrape(portal)
 
 
-async def process_portal(conn, portal: PortalRecord) -> dict:
+async def process_portal(
+    conn, portal: PortalRecord, skip_embeddings: bool = False
+) -> dict:
     """
     Full pipeline for ONE portal: scrape -> validate -> embed -> upsert -> audit.
 
@@ -121,7 +123,11 @@ async def process_portal(conn, portal: PortalRecord) -> dict:
         )
 
         # Step 4: Generate embeddings (only on validated listings)
-        embedded = generate_embeddings(validated)
+        if skip_embeddings:
+            logger.info("Portal %s: skipping embeddings (--skip-embeddings)", portal.name)
+            embedded = validated
+        else:
+            embedded = generate_embeddings(validated)
 
         # Step 5: Upsert to database
         stats = upsert_listings(conn, portal.id, embedded)
@@ -132,12 +138,16 @@ async def process_portal(conn, portal: PortalRecord) -> dict:
         return stats
 
     except Exception as e:
+        conn.rollback()
         fail_run(conn, run_id, portal, e)
         logger.exception("Portal %s failed", portal.name)
         return {"found": 0, "new": 0, "updated": 0, "error": str(e)}
 
 
-async def run_pipeline(portal_name: Optional[str] = None) -> dict:
+async def run_pipeline(
+    portal_name: Optional[str] = None,
+    skip_embeddings: bool = False,
+) -> dict:
     """
     Run the scraper pipeline for all enabled portals (or a single portal).
 
@@ -169,7 +179,7 @@ async def run_pipeline(portal_name: Optional[str] = None) -> dict:
             logger.info(
                 "--- Processing portal: %s (%s) ---", portal.name, portal.url
             )
-            stats = await process_portal(conn, portal)
+            stats = await process_portal(conn, portal, skip_embeddings=skip_embeddings)
             results[portal.name] = stats
 
         # Log summary

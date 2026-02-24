@@ -187,9 +187,9 @@ upserted AS (
         COALESCE(status, 'open'), language,
         posting_date::timestamptz, closing_date::timestamptz,
         amended_date::timestamptz,
-        province, raw_location, classification_codes,
-        value_min, value_max, contact_info, documents,
-        source_url, embedding::vector, embedding_model, completeness_score,
+        province, raw_location, classification_codes::jsonb,
+        value_min::numeric, value_max::numeric, contact_info::jsonb, documents::jsonb,
+        source_url, embedding::vector, embedding_model, completeness_score::numeric,
         NOW(), NOW(), NOW()
     FROM input_rows
     ON CONFLICT (source_portal, source_listing_id) DO UPDATE SET
@@ -288,7 +288,9 @@ def upsert_listings(conn, portal_id: str, listings: list) -> dict:
     values = [_listing_to_tuple(listing) for listing in listings]
 
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        psycopg2.extras.execute_values(
+        # execute_values with fetch=True returns results directly.
+        # With paging, each page runs the CTE separately, so we sum across pages.
+        rows = psycopg2.extras.execute_values(
             cur,
             UPSERT_SQL,
             values,
@@ -296,15 +298,18 @@ def upsert_listings(conn, portal_id: str, listings: list) -> dict:
                 "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
                 "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             ),
-            page_size=100,
+            page_size=1000,
             fetch=True,
         )
-        result = cur.fetchone()
+
+    total = sum(int(r["total"]) for r in rows)
+    new_count = sum(int(r["new_count"]) for r in rows)
+    updated_count = sum(int(r["updated_count"]) for r in rows)
 
     return {
-        "found": int(result["total"]),
-        "new": int(result["new_count"]),
-        "updated": int(result["updated_count"]),
+        "found": total,
+        "new": new_count,
+        "updated": updated_count,
     }
 
 
