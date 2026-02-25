@@ -10,7 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Ensure Chromium is installed (may already be in base image)
-RUN playwright install chromium
+RUN python -m playwright install chromium
 
 COPY . .
 
