@@ -5,6 +5,7 @@ Provides connection management, listing upsert (SCRP-06), portal queries,
 and scrape run audit helpers. All SQL uses parameterized queries (%s style).
 """
 
+import logging
 from contextlib import contextmanager
 from typing import Optional
 
@@ -13,6 +14,8 @@ import psycopg2.extras
 
 from scraper import config
 from scraper.models import ListingRecord, PortalRecord
+
+logger = logging.getLogger("scraper.db")
 
 
 # ---------------------------------------------------------------------------
@@ -381,3 +384,52 @@ def fail_scrape_run(conn, run_id: str, error_message: str) -> None:
             "WHERE id = %s",
             (error_message, run_id),
         )
+
+
+# ---------------------------------------------------------------------------
+# Keyword purge (PURG-01, PURG-02)
+# ---------------------------------------------------------------------------
+
+
+def purge_unmatched_listings(conn, keywords: list) -> int:
+    """
+    Delete all listings that don't match any keyword on title or description.
+
+    Uses the same matches_keywords() function as the scraper filter (PURG-02)
+    to ensure consistent matching logic.
+
+    Args:
+        conn: psycopg2 connection (caller manages transaction).
+        keywords: List of lowercased keyword strings.
+
+    Returns:
+        Number of listings deleted.
+    """
+    from scraper.pipeline.keywords import matches_keywords
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, title, description FROM listings")
+        rows = cur.fetchall()
+
+    to_delete = [
+        row[0] for row in rows
+        if not matches_keywords(row[1], row[2], keywords)
+    ]
+
+    if not to_delete:
+        logger.info("Purge: all %d listings match keywords, nothing to delete", len(rows))
+        return 0
+
+    deleted = 0
+    batch_size = 1000
+    with conn.cursor() as cur:
+        for i in range(0, len(to_delete), batch_size):
+            batch = to_delete[i:i + batch_size]
+            cur.execute("DELETE FROM listings WHERE id = ANY(%s)", (batch,))
+            deleted += cur.rowcount
+
+    logger.info(
+        "Purge: deleted %d non-matching listings out of %d total",
+        deleted, len(rows),
+    )
+    return deleted

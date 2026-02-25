@@ -8,6 +8,7 @@ deduplication by source_listing_id.
 
 import uuid
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -18,6 +19,7 @@ from scraper.pipeline.keywords import (
     filter_listings,
     deduplicate_listings,
 )
+from scraper.db import purge_unmatched_listings
 
 
 # ---------------------------------------------------------------------------
@@ -206,3 +208,95 @@ class TestDeduplicateListings:
         ]
         result = deduplicate_listings(listings)
         assert len(result) == 3
+
+
+# ---------------------------------------------------------------------------
+# TestPurge
+# ---------------------------------------------------------------------------
+
+
+class TestPurge:
+    """Tests for purge_unmatched_listings()."""
+
+    @pytest.fixture
+    def mock_conn(self):
+        mock = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock.cursor.return_value = mock_cursor
+        mock._mock_cursor = mock_cursor
+        return mock
+
+    def test_purge_deletes_non_matching(self, mock_conn):
+        mock_cursor = mock_conn._mock_cursor
+        mock_cursor.fetchall.return_value = [
+            ("id-1", "translation services needed", "description"),
+            ("id-2", "office furniture supply", "desks and chairs"),
+            ("id-3", "bilingual translation project", None),
+        ]
+        mock_cursor.rowcount = 1
+
+        result = purge_unmatched_listings(mock_conn, ["translation"])
+        assert result == 1
+
+        # Verify DELETE was called with the non-matching ID
+        delete_calls = [
+            c for c in mock_cursor.execute.call_args_list
+            if "DELETE" in str(c)
+        ]
+        assert len(delete_calls) == 1
+        assert "id-2" in delete_calls[0][0][1][0]
+
+    def test_purge_nothing_when_all_match(self, mock_conn):
+        mock_cursor = mock_conn._mock_cursor
+        mock_cursor.fetchall.return_value = [
+            ("id-1", "translation services", "desc"),
+            ("id-2", "certified translation", "more desc"),
+        ]
+
+        result = purge_unmatched_listings(mock_conn, ["translation"])
+        assert result == 0
+
+        # Only SELECT should have been executed, no DELETE
+        calls = mock_cursor.execute.call_args_list
+        assert len(calls) == 1  # Just the SELECT
+        assert "SELECT" in str(calls[0])
+
+    def test_purge_uses_matches_keywords(self, mock_conn):
+        mock_cursor = mock_conn._mock_cursor
+        mock_cursor.fetchall.return_value = [
+            ("id-1", "test title", "test desc"),
+        ]
+
+        with patch("scraper.pipeline.keywords.matches_keywords") as mock_match:
+            mock_match.return_value = True
+            purge_unmatched_listings(mock_conn, ["test"])
+            mock_match.assert_called_once_with("test title", "test desc", ["test"])
+
+    def test_purge_handles_none_description(self, mock_conn):
+        mock_cursor = mock_conn._mock_cursor
+        mock_cursor.fetchall.return_value = [
+            ("id-1", "translation services", None),
+        ]
+
+        # Should not crash
+        result = purge_unmatched_listings(mock_conn, ["translation"])
+        assert result == 0
+
+    def test_purge_batches_deletes(self, mock_conn):
+        mock_cursor = mock_conn._mock_cursor
+        # 2500 non-matching rows
+        mock_cursor.fetchall.return_value = [
+            (f"id-{i}", "office furniture", "no match") for i in range(2500)
+        ]
+        mock_cursor.rowcount = 1000
+
+        result = purge_unmatched_listings(mock_conn, ["translation"])
+
+        # Should batch into 3 DELETE calls (1000 + 1000 + 500)
+        delete_calls = [
+            c for c in mock_cursor.execute.call_args_list
+            if "DELETE" in str(c)
+        ]
+        assert len(delete_calls) == 3

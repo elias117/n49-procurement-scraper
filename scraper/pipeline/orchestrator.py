@@ -17,6 +17,7 @@ from scraper.db import (
     db_connection,
     get_enabled_portals,
     get_portal_by_name,
+    purge_unmatched_listings,
     upsert_listings,
 )
 from scraper.pipeline.keywords import load_keywords, filter_listings, deduplicate_listings
@@ -192,6 +193,10 @@ async def run_pipeline(
             )
             stats = await process_portal(conn, portal, keywords=keywords, skip_embeddings=skip_embeddings)
             results[portal.name] = stats
+
+        # Purge non-matching listings from database (PURG-01)
+        purged = purge_unmatched_listings(conn, keywords)
+        logger.info("Purged %d non-matching listings from database", purged)
 
         # Log summary
         total_found = sum(r.get("found", 0) for r in results.values())
