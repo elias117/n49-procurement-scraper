@@ -43,6 +43,9 @@ Plans:
 ### Phase 8: Browser-Use Portals Keyword Search
 **Goal:** Generic browser-use portals search for keywords using portal search forms instead of scraping all visible listings.
 **Requirements:** FILT-03, FILT-04
+**Plans:** 1+ plans
+Plans:
+- [x] 8-01-PLAN.md — Browser-use keyword search logic: BrowserScrapeResult, OR fallback, action history detection + tests
 **Success Criteria:**
   1. Agent prompt instructs the AI to use the portal's search form with keywords
   2. Curated keyword subset is used for portals with simple search boxes

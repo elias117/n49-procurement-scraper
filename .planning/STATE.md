@@ -10,10 +10,10 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v1.5 — Keyword-Filtered Scraping
-Phase: 7 (in progress)
-Current Plan: 7-03
-Status: 7-02 complete (3 tasks, 2 commits), 85 phase-7 tests passing, 160 scraper tests passing
-Last activity: 2026-02-25 — Phase 7 Plan 2 executed (orchestrator wiring + search_used filter logic)
+Phase: 8 (in progress)
+Current Plan: 8-02
+Status: 8-01 complete (3 tasks, 3 commits), 24 browser-scraper tests passing, 166 scraper tests passing
+Last activity: 2026-02-25 — Phase 8 Plan 1 executed (browser-use keyword search logic)
 
 ## Milestone History
 
@@ -56,8 +56,12 @@ Last activity: 2026-02-25 — Phase 7 Plan 2 executed (orchestrator wiring + sea
 - BidsAndTendersResult NamedTuple signals orchestrator whether post-filter is needed
 - search_used flag drives conditional filtering: True=skip filter, False=apply filter (handles search-box-not-found fallback)
 - `from __future__ import annotations` for Python 3.9 compat in orchestrator (matches bidsandtenders.py)
+- BrowserScrapeResult NamedTuple mirrors BidsAndTendersResult pattern for consistent search_used signaling
+- _detect_search_used checks action_names() for "input_text" -- definitive signal of search form interaction
+- OR fallback persists across categories (once portal rejects OR, all subsequent use single keywords)
+- BROWSER_SEARCH_MAX_STEPS (default 50) controls global step budget across category searches
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 7-02-PLAN.md — next: execute 7-03-PLAN.md (if exists)
+Stopped at: Completed 8-01-PLAN.md — next: execute 8-02-PLAN.md (if exists)
