@@ -16,12 +16,10 @@ files_modified:
   - web/package.json
   - web/server.js
   - nginx/nginx.conf
-  - nginx/nginx-initial.conf
   - terraform/main.tf
   - terraform/variables.tf
   - terraform/outputs.tf
   - terraform/user_data.sh
-  - deploy.sh
 autonomous: false
 requirements:
   - INFR-01
@@ -84,7 +82,7 @@ Output: Working EC2 instance at procurement.eliastools.com with all services run
 </objective>
 
 <execution_context>
-This plan has 4 tasks executed sequentially. Tasks 1-2 create all local files and verify with docker compose. Task 3 provisions AWS infrastructure. Task 4 deploys everything to EC2 and sets up TLS.
+This plan has 5 tasks executed sequentially. Tasks 1-3 create all local files and verify with docker compose. Task 4 provisions AWS infrastructure. Task 5 deploys everything to EC2 and sets up TLS.
 </execution_context>
 
 <context>
@@ -96,21 +94,21 @@ This plan has 4 tasks executed sequentially. Tasks 1-2 create all local files an
 <tasks>
 
 <task type="auto">
-  <name>Task 1: Create project scaffold with Docker Compose, service stubs, and PostgreSQL schema migrations</name>
+  <name>Task 1: Create project scaffold with Docker Compose, service stubs, and Nginx config</name>
   <files>
     docker-compose.yml
     .env.example
     .gitignore
-    db/migrations/001_initial_schema.sql
     scraper/Dockerfile
     scraper/main.py
     scraper/requirements.txt
     web/Dockerfile
     web/package.json
     web/server.js
+    nginx/nginx.conf
   </files>
   <action>
-Create the complete project scaffold. All files described below should be created exactly as specified.
+Create the project scaffold — Docker Compose, service stubs, and Nginx config. The PostgreSQL schema migration is created in Task 2. All files described below should be created exactly as specified.
 
 **1. `.gitignore`** — Add these entries (append if file exists):
 ```
@@ -237,7 +235,148 @@ networks:
     driver: bridge
 ```
 
-**4. `db/migrations/001_initial_schema.sql`** — Complete PostgreSQL schema. This is the most critical file. Every column, index, and constraint must match the specification exactly.
+**4. `scraper/Dockerfile`** — Stub scraper container using Playwright base image (Pitfall 11):
+```dockerfile
+FROM mcr.microsoft.com/playwright/python:v1.51.0-noble
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Stub: just keep the container running for Phase 1
+CMD ["python", "main.py"]
+```
+
+**5. `scraper/requirements.txt`** — Minimal deps for stub:
+```
+# Phase 1: stub only. Full dependencies added in Phase 2.
+psycopg2-binary==2.9.10
+```
+
+**6. `scraper/main.py`** — Stub that logs readiness and sleeps:
+```python
+import time
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("scraper")
+
+if __name__ == "__main__":
+    logger.info("Scraper container started (Phase 1 stub)")
+    logger.info("Scraper pipeline will be implemented in Phase 2")
+    # Keep container running so Docker Compose doesn't restart it
+    while True:
+        time.sleep(3600)
+```
+
+**7. `web/Dockerfile`** — Stub Node.js web server:
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package.json .
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]
+```
+
+**8. `web/package.json`** — Minimal package.json for stub:
+```json
+{
+  "name": "procurement-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
+```
+
+**9. `web/server.js`** — Stub Express server returning health check:
+```javascript
+const express = require('express');
+const app = express();
+const PORT = 3000;
+
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'procurement-web',
+    phase: 1,
+    message: 'Next.js application will be implemented in Phase 4'
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Web stub listening on port ${PORT}`);
+});
+```
+
+**10. `nginx/nginx.conf`** — Initial HTTP-only config (TLS added in Task 4 after certbot runs). This config serves HTTP and the certbot challenge, but does NOT yet have SSL:
+```nginx
+server {
+    listen 80;
+    server_name procurement.eliastools.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        proxy_pass http://web:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+After creating all files, copy `.env.example` to `.env` and set a real password for local testing. Then run `docker compose up --build -d` and verify all 4 services start. Check with `docker compose ps` — all should show "running" or "Up".
+
+Note: The PostgreSQL schema migration (001_initial_schema.sql) is created in Task 2. At this point the db container starts but has no application tables yet — just verify it's healthy.
+
+Then `docker compose down` to clean up.
+  </action>
+  <verify>
+    <automated>
+    cd /Users/clawbot/dev && cp .env.example .env && docker compose up --build -d && sleep 15 && docker compose ps --format "table {{.Name}}\t{{.Status}}" && curl -sf http://localhost:80/ && docker compose down
+    </automated>
+    <manual>All 4 services (db, scraper, web, nginx) show "Up" status. Nginx proxies to web stub successfully.</manual>
+  </verify>
+  <done>
+    - docker compose up starts all 4 services without errors
+    - db (pgvector/pgvector:pg17) is healthy
+    - scraper container runs stub process
+    - web container serves health check on port 3000
+    - nginx proxies port 80 to web service
+    - .env.example has all required variables
+    - .gitignore covers terraform state, .env, *.pem
+  </done>
+</task>
+
+<task type="auto">
+  <name>Task 2: Create PostgreSQL schema migration with all tables, indexes, and constraints</name>
+  <files>
+    db/migrations/001_initial_schema.sql
+  </files>
+  <action>
+Create the complete PostgreSQL schema migration at `db/migrations/001_initial_schema.sql`. This is the most critical file in Phase 1 — every column, index, and constraint must match the specification exactly.
 
 ```sql
 -- Enable pgvector extension
@@ -364,120 +503,11 @@ CREATE INDEX scrape_runs_portal_idx ON scrape_runs (portal_id);
 CREATE INDEX scrape_runs_started_at_idx ON scrape_runs (started_at);
 ```
 
-**5. `scraper/Dockerfile`** — Stub scraper container using Playwright base image (Pitfall 11):
-```dockerfile
-FROM mcr.microsoft.com/playwright/python:v1.51.0-noble
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-# Stub: just keep the container running for Phase 1
-CMD ["python", "main.py"]
-```
-
-**6. `scraper/requirements.txt`** — Minimal deps for stub:
-```
-# Phase 1: stub only. Full dependencies added in Phase 2.
-psycopg2-binary==2.9.10
-```
-
-**7. `scraper/main.py`** — Stub that logs readiness and sleeps:
-```python
-import time
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("scraper")
-
-if __name__ == "__main__":
-    logger.info("Scraper container started (Phase 1 stub)")
-    logger.info("Scraper pipeline will be implemented in Phase 2")
-    # Keep container running so Docker Compose doesn't restart it
-    while True:
-        time.sleep(3600)
-```
-
-**8. `web/Dockerfile`** — Stub Node.js web server:
-```dockerfile
-FROM node:20-alpine
-
-WORKDIR /app
-
-COPY package.json .
-RUN npm install
-
-COPY . .
-
-EXPOSE 3000
-
-CMD ["node", "server.js"]
-```
-
-**9. `web/package.json`** — Minimal package.json for stub:
-```json
-{
-  "name": "procurement-web",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.21.0"
-  }
-}
-```
-
-**10. `web/server.js`** — Stub Express server returning health check:
-```javascript
-const express = require('express');
-const app = express();
-const PORT = 3000;
-
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'procurement-web',
-    phase: 1,
-    message: 'Next.js application will be implemented in Phase 4'
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy' });
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Web stub listening on port ${PORT}`);
-});
-```
-
-**11. `nginx/nginx.conf`** — Initial HTTP-only config (TLS added in Task 4 after certbot runs). This config serves HTTP and the certbot challenge, but does NOT yet have SSL:
-```nginx
-server {
-    listen 80;
-    server_name procurement.eliastools.com;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        proxy_pass http://web:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-After creating all files, copy `.env.example` to `.env` and set a real password for local testing. Then run `docker compose up --build -d` and verify all 4 services start. Check with `docker compose ps` — all should show "running" or "Up". Check PostgreSQL schema by running:
+After creating the file, reset the database to run the migration (PostgreSQL runs .sql files in /docker-entrypoint-initdb.d/ on first start only):
 ```bash
+docker compose down -v  # Remove volumes to reset DB
+docker compose up -d
+sleep 15
 docker compose exec db psql -U procurement -d procurement -c "\dt"
 ```
 This should show tables: portals, listings, scrape_runs.
@@ -486,35 +516,34 @@ Verify indexes:
 ```bash
 docker compose exec db psql -U procurement -d procurement -c "\di"
 ```
-Should show: listings_fts_idx (gin), listings_embedding_idx (hnsw), listings_pkey, portals_pkey, scrape_runs_pkey, and all performance indexes.
+Should show: listings_fts_idx (gin), listings_embedding_idx (hnsw), and all performance indexes.
 
 Verify the pgvector extension:
 ```bash
 docker compose exec db psql -U procurement -d procurement -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';"
 ```
-
-Then `docker compose down` to clean up.
   </action>
   <verify>
     <automated>
-    cd /Users/clawbot/dev && cp .env.example .env && docker compose up --build -d && sleep 15 && docker compose ps --format "table {{.Name}}\t{{.Status}}" && docker compose exec db psql -U procurement -d procurement -c "\dt" && docker compose exec db psql -U procurement -d procurement -c "\di" && docker compose exec db psql -U procurement -d procurement -c "SELECT extname FROM pg_extension WHERE extname = 'vector';" && docker compose exec db psql -U procurement -d procurement -c "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'listings' AND column_name IN ('posting_date', 'closing_date', 'created_at', 'updated_at', 'last_scraped_at', 'amended_date') ORDER BY column_name;" && docker compose down
+    cd /Users/clawbot/dev && docker compose down -v && docker compose up -d && sleep 15 && docker compose exec db psql -U procurement -d procurement -c "\dt" && docker compose exec db psql -U procurement -d procurement -c "\di" && docker compose exec db psql -U procurement -d procurement -c "SELECT extname FROM pg_extension WHERE extname = 'vector';" && docker compose exec db psql -U procurement -d procurement -c "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'listings' AND column_name IN ('posting_date', 'closing_date', 'created_at', 'updated_at', 'last_scraped_at', 'amended_date') ORDER BY column_name;" && docker compose down
     </automated>
-    <manual>All 4 services (db, scraper, web, nginx) show "Up" status. Tables portals, listings, scrape_runs exist. All date columns show "timestamp with time zone". pgvector extension is loaded.</manual>
+    <manual>Tables portals, listings, scrape_runs exist. All date columns show "timestamp with time zone". HNSW and GIN indexes exist. pgvector extension is loaded.</manual>
   </verify>
   <done>
-    - docker compose up starts all 4 services without errors
     - PostgreSQL has listings, portals, scrape_runs tables
     - All date/time columns are TIMESTAMPTZ
     - HNSW index exists on listings.embedding
     - GIN tsvector index exists for full-text search
     - (source_portal, source_listing_id) UNIQUE constraint exists
     - pgvector extension is loaded
-    - scraper/web containers run their stub processes
+    - classification_codes, contact_info, documents are JSONB
+    - value_min and value_max are NUMERIC
+    - status CHECK constraint covers open/closed/cancelled/awarded
   </done>
 </task>
 
 <task type="auto">
-  <name>Task 2: Create portal seed migration with all 63 portals</name>
+  <name>Task 3: Create portal seed migration with all 63 portals</name>
   <files>
     db/migrations/002_seed_portals.sql
   </files>
@@ -655,7 +684,7 @@ docker compose exec db psql -U procurement -d procurement -c "SELECT COUNT(*) FR
 </task>
 
 <task type="auto">
-  <name>Task 3: Create Terraform configuration for AWS infrastructure in ca-central-1</name>
+  <name>Task 4: Create Terraform configuration for AWS infrastructure in ca-central-1</name>
   <files>
     terraform/main.tf
     terraform/variables.tf
@@ -709,11 +738,11 @@ variable "ssh_allowed_cidr" {
 #!/bin/bash
 set -euxo pipefail
 
-# Update system
-yum update -y
+# Update system (Amazon Linux 2023 uses dnf)
+dnf update -y
 
 # Install Docker
-amazon-linux-extras install docker -y || yum install docker -y
+dnf install docker -y
 systemctl start docker
 systemctl enable docker
 
@@ -725,7 +754,7 @@ curl -SL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_V
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 # Install Git
-yum install -y git
+dnf install -y git
 
 # Add ec2-user to docker group
 usermod -aG docker ec2-user
@@ -1016,7 +1045,7 @@ The plan should show approximately 10-12 resources to create (VPC, subnet, IGW, 
 Do NOT run `terraform apply` yet — that happens as part of Task 4.
   </action>
   <verify>
-    <automated>cd /Users/clawbot/dev/terraform && terraform init -input=false && terraform validate && terraform plan -input=false -detailed-exitcode 2>&1 | head -50; echo "Exit code: $?"</automated>
+    <automated>cd /Users/clawbot/dev/terraform && terraform init -input=false && terraform validate && terraform plan -input=false 2>&1; echo "Terraform plan exit code: ${PIPESTATUS[0]:-$?}"</automated>
     <manual>terraform validate succeeds. terraform plan shows ~10-12 resources to create including VPC, EC2, EIP, Route53 record. No errors.</manual>
   </verify>
   <done>
@@ -1033,7 +1062,7 @@ Do NOT run `terraform apply` yet — that happens as part of Task 4.
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
-  <name>Task 4: Deploy to EC2, configure TLS, and verify end-to-end</name>
+  <name>Task 5: Deploy to EC2, configure TLS, and verify end-to-end</name>
   <what-built>
 This task requires running `terraform apply` (which costs money and creates AWS resources) and then deploying the application to EC2 with TLS. The executor should:
 
@@ -1193,7 +1222,17 @@ docker compose restart nginx
 REMOTE_EOF
 ```
 
-8. **Verify terraform plan shows no drift:**
+8. **Set up certbot auto-renewal** (Let's Encrypt certs expire after 90 days):
+```bash
+ssh -i "$SSH_KEY" ec2-user@$PUBLIC_IP << 'REMOTE_EOF'
+# Create a cron job to renew certificates twice daily (certbot only renews if within 30 days of expiry)
+echo '0 0,12 * * * root docker run --rm -v procurement-intel_certbot_etc:/etc/letsencrypt -v procurement-intel_certbot_var:/var/www/certbot certbot/certbot renew --quiet && cd /opt/procurement-intel && docker compose exec -T nginx nginx -s reload' | sudo tee /etc/cron.d/certbot-renew
+sudo chmod 644 /etc/cron.d/certbot-renew
+echo "Certbot renewal cron installed"
+REMOTE_EOF
+```
+
+9. **Verify terraform plan shows no drift:**
 ```bash
 cd /Users/clawbot/dev/terraform
 terraform plan -detailed-exitcode
@@ -1201,7 +1240,7 @@ terraform plan -detailed-exitcode
 # Exit code 2 = changes detected (drift)
 ```
 
-9. **Verify end-to-end:**
+10. **Verify end-to-end:**
 ```bash
 # HTTPS should work
 curl -s -o /dev/null -w "%{http_code}" https://procurement.eliastools.com/

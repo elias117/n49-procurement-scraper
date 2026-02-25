@@ -170,7 +170,7 @@ Output: Three pipeline modules. Both browser scrapers depend on extraction.py. A
     `async def bidsandtenders_scrape(portal: PortalRecord) -> list[ProcurementListing]`:
     1. Import browser-use: `from browser_use import Agent, Browser` and `from langchain_openai import ChatOpenAI`.
     2. Create Browser instance:
-       - `headless=config.BROWSER_HEADLESS`
+       - `headless=config.BROWSER_HEADLESS` (MUST be False — POC confirmed headless=True gets 403-blocked. Xvfb provides virtual display in Docker.)
        - `wait_for_network_idle_page_load_time=3.0` (BidsAndTenders uses AJAX -- needs longer wait per pitfall #4)
        - `wait_between_actions=config.BROWSER_WAIT_BETWEEN_ACTIONS`
     3. Construct the tender listing URL: extract subdomain from portal.url, navigate to `{base_url}/Module/Tenders/en` (the standard listing path for all BidsAndTenders subdomains).
@@ -198,7 +198,7 @@ Output: Three pipeline modules. Both browser scrapers depend on extraction.py. A
     `async def browser_scrape(portal: PortalRecord) -> list[ProcurementListing]`:
     1. Same browser-use setup as BidsAndTenders but with different task prompt and standard wait times.
     2. Create Browser:
-       - `headless=config.BROWSER_HEADLESS`
+       - `headless=config.BROWSER_HEADLESS` (MUST be False — POC confirmed headless=True gets 403-blocked. Xvfb provides virtual display in Docker.)
        - `wait_for_network_idle_page_load_time=config.BROWSER_WAIT_NETWORK_IDLE`
        - `wait_between_actions=config.BROWSER_WAIT_BETWEEN_ACTIONS`
     3. Create Agent:

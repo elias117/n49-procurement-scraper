@@ -14,6 +14,7 @@ files_modified:
   - scraper/tests/conftest.py
   - scraper/tests/test_models.py
   - scraper/tests/test_upsert.py
+  - db/migrations/003_add_completeness_score.sql
   - pytest.ini
 autonomous: true
 requirements:
@@ -127,7 +128,7 @@ Output: Working models.py, db.py, config.py with passing unit tests. All future 
     - `MAX_EMBEDDING_TOKENS` = 8000 (leave margin below 8192 limit)
     - `EMBEDDING_BATCH_TOKEN_LIMIT` = 250_000
     - `EMBEDDING_BATCH_SIZE_LIMIT` = 2048
-    - `BROWSER_HEADLESS` = True
+    - `BROWSER_HEADLESS` = False (POC confirmed: headless=True gets 403-blocked by procurement portals. Must use headless=False with Xvfb in Docker.)
     - `BROWSER_WAIT_NETWORK_IDLE` = 2.0 (seconds)
     - `BROWSER_WAIT_BETWEEN_ACTIONS` = 1.0 (seconds)
     - `BROWSER_MAX_STEPS` = 10
@@ -164,10 +165,19 @@ Output: Working models.py, db.py, config.py with passing unit tests. All future 
     `ListingRecord` (DB-ready, post-validation):
     - All ProcurementListing fields plus:
     - `source_portal: str` (UUID as string, the portal ID)
+    - `contact_info: Optional[dict] = None` (JSONB: {name, email, phone} — consolidated from ProcurementListing's separate contact fields)
+    - `amended_date: Optional[str] = None` (ISO format, maps to DB amended_date column)
     - `embedding: Optional[list[float]] = None`
     - `embedding_model: Optional[str] = None`
     - `language: Optional[str] = None`
     - `completeness_score: float = 0.0`
+    - NOTE: ListingRecord does NOT have contact_name/contact_email/contact_phone — those exist only on ProcurementListing for LLM extraction clarity. The orchestrator must consolidate them into contact_info JSONB when converting ProcurementListing to ListingRecord.
+
+    `to_listing_record(extraction: ProcurementListing, portal_id: str, language: str) -> ListingRecord`:
+    - Factory function that converts ProcurementListing to ListingRecord.
+    - Consolidates contact_name/contact_email/contact_phone into contact_info JSONB: `{"name": ..., "email": ..., "phone": ...}` (omit keys with None values).
+    - Sets source_portal = portal_id, language = language.
+    - Copies all other shared fields directly.
 
     `PortalRecord`:
     - `id: str`, `name: str`, `url: str`, `level: str`, `province: Optional[str]`
@@ -181,7 +191,15 @@ Output: Working models.py, db.py, config.py with passing unit tests. All future 
 
     **4. Create `scraper/pipeline/__init__.py`** — Empty file to make pipeline a package.
 
-    **5. Create `pytest.ini`** in the project root:
+    **5. Create `db/migrations/003_add_completeness_score.sql`**:
+    ```sql
+    -- Add completeness_score column for tracking field population per listing
+    ALTER TABLE listings ADD COLUMN IF NOT EXISTS completeness_score NUMERIC DEFAULT 0;
+    CREATE INDEX IF NOT EXISTS listings_completeness_idx ON listings (completeness_score);
+    ```
+    This column is computed during scraping and persisted to avoid recomputing on every query.
+
+    **6. Create `pytest.ini`** in the project root:
     ```ini
     [pytest]
     testpaths = scraper/tests

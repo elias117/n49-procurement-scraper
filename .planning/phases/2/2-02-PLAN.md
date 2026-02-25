@@ -99,6 +99,7 @@ Output: Three independent pipeline modules with full test coverage. CanadaBuys c
     - NEVER reject an entire listing. Instead, null out individual invalid fields. Per user decision: "blank is always better than a wrong guess."
     - Validation rules:
       1. **Minimum viable check**: If title is missing/empty, raise ValueError (this IS a rejection -- no title means no listing).
+      1b. **source_listing_id fallback**: If source_listing_id is None or empty, generate a deterministic fallback ID using `hashlib.sha256(f"{source_portal}:{title}:{source_url or ''}".encode()).hexdigest()[:64]`. Log warning: "Generated fallback source_listing_id for listing: {title}". This prevents NOT NULL constraint violations on the DB's (source_portal, source_listing_id) unique key while maintaining upsert idempotency (same title+portal+url always produces the same ID).
       2. **Closing date sanity**: If closing_date is present and posting_date is present and closing_date < posting_date, set closing_date = None. Log warning.
       3. **Date format**: If posting_date or closing_date cannot be parsed as ISO datetime, set to None. Log warning.
       4. **Value range**: If value_min or value_max is not None and (< 0 or > 10,000,000,000), set to None. Log warning.
@@ -125,6 +126,8 @@ Output: Three independent pipeline modules with full test coverage. CanadaBuys c
     - `test_invalid_status_defaults_to_open()` — status="draft" becomes "open".
     - `test_invalid_url_nullified()` — source_url="not-a-url" becomes None.
     - `test_classification_codes_missing_keys_removed()` — Entry without 'system' key removed.
+    - `test_missing_source_listing_id_generates_fallback()` — Listing with no source_listing_id gets a deterministic hash-based fallback.
+    - `test_fallback_source_listing_id_is_deterministic()` — Same title+portal+url always produces the same fallback ID.
     - `test_completeness_score_full()` — All 9 fields present = 1.0.
     - `test_completeness_score_minimal()` — Only title + source_url = ~0.22.
     - `test_completeness_score_empty_codes_not_counted()` — Empty classification_codes list scores as missing.
@@ -172,6 +175,7 @@ Output: Three independent pipeline modules with full test coverage. CanadaBuys c
        - `province`: From regionsOfOpportunity field.
        - `raw_location`: From regionsOfDelivery field.
        - `language`: Detect from which title field was used (en/fr/both).
+       - `amended_date`: From amendmentDate field (ISO format).
        - `documents`: Empty list (CSV doesn't include document links).
        - `source_portal`: portal.id
     5. Create ListingRecord for each row.

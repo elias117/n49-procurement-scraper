@@ -152,7 +152,7 @@ Output: A working `python main.py` that scrapes all enabled portals end-to-end. 
     1. `run_id = start_run(conn, portal)`
     2. `try:`
     3.   `raw_listings = await scrape_portal(portal)`
-    4.   Convert ProcurementListing to ListingRecord (add source_portal=portal.id, language=portal.language).
+    4.   Convert ProcurementListing to ListingRecord using `to_listing_record(l, portal.id, portal.language)` from models.py. This consolidates contact_name/email/phone into contact_info JSONB, sets source_portal and language.
     5.   `validated = [validate_and_score(l) for l in listing_records]` — Filter out any that raised ValueError (missing title).
     6.   `embedded = await generate_embeddings(validated)` — Only embed validated listings.
     7.   `stats = upsert_listings(conn, portal.id, embedded)`
@@ -317,9 +317,12 @@ Output: A working `python main.py` that scrapes all enabled portals end-to-end. 
 
     **Update `scraper/Dockerfile`:**
     - Keep the same base image (mcr.microsoft.com/playwright/python:v1.51.0-noble).
+    - **Install Xvfb**: `RUN apt-get update && apt-get install -y xvfb && rm -rf /var/lib/apt/lists/*`
+      POC confirmed: headless=True gets 403-blocked by procurement portals. Must run Chromium with headless=False using Xvfb as virtual display.
     - Update to install browser-use's browser dependencies if needed: `RUN playwright install chromium` (may already be in base image, but ensure it's explicit).
-    - Keep the CMD as `["python", "main.py"]` for Docker Compose compatibility (runs all portals).
-    - Add a HEALTHCHECK or ensure the container exits cleanly after pipeline completion (don't loop -- let Docker Compose restart policy handle scheduling in Phase 5).
+    - **Change CMD to use xvfb-run**: `CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1920x1080x24", "python", "main.py"]`
+      This wraps the scraper in a virtual framebuffer so Chromium runs in non-headless mode inside Docker without a real display.
+    - Do NOT use `CMD ["python", "main.py"]` — that will fail with headless=False and no display.
 
     IMPORTANT change from Phase 1: The scraper should now RUN and EXIT, not sleep forever. The Phase 1 stub was a sleep loop to keep the container alive. Phase 2 scraper should run the pipeline once and exit. Docker Compose restart policy will be adjusted in Phase 5 for scheduling. For now, update docker-compose.yml scraper service to use `restart: "no"` instead of `restart: unless-stopped` so it doesn't restart after completion.
 
@@ -335,7 +338,7 @@ Output: A working `python main.py` that scrapes all enabled portals end-to-end. 
     - `python main.py --portal CanadaBuys` runs single portal
     - `python main.py --list-portals` shows all 63 portals with status
     - Pipeline summary printed at end with counts and duration
-    - Dockerfile updated for Phase 2 dependencies
+    - Dockerfile installs xvfb and uses `xvfb-run` in CMD (POC requirement: headless=True gets 403-blocked)
     - Exit code 1 only if ALL portals fail
   </done>
 </task>

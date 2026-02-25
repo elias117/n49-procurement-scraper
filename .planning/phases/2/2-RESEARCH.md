@@ -300,6 +300,7 @@ async def check_auto_disable(db, portal_id: str) -> bool:
 ```
 
 ### Anti-Patterns to Avoid
+- **Using headless=True:** POC confirmed that headless Chromium gets 403-blocked by procurement portals (including CanadaBuys). MUST use headless=False with Xvfb in Docker. The Dockerfile needs `apt-get install -y xvfb` and the entrypoint must use `xvfb-run`.
 - **AI for everything:** Do NOT use browser-use or LLM extraction for CanadaBuys. The CSV is structured data -- parsing it with an LLM wastes money and adds latency.
 - **Per-portal Playwright selectors:** Do NOT write CSS selectors for each portal. That is the whole point of using browser-use + LLM extraction -- it handles layout diversity.
 - **Guessing structured fields:** Do NOT instruct the LLM to "try to determine" NAICS codes or dollar values. The extraction prompt must say "extract only if explicitly stated, otherwise return null."
