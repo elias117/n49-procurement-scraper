@@ -631,7 +631,7 @@ class TestSearchUsedFilterLogic:
         "scraper.pipeline.orchestrator.scrape_portal",
         new_callable=AsyncMock,
     )
-    def test_search_used_true_skips_keyword_filter(
+    def test_search_used_true_still_applies_keyword_filter(
         self,
         mock_scrape,
         mock_filter,
@@ -645,7 +645,7 @@ class TestSearchUsedFilterLogic:
         mock_conn,
         bidsandtenders_portal,
     ):
-        """When search_used=True, keyword filter_listings is NOT called."""
+        """When search_used=True, keyword filter still runs to validate results."""
         mock_start.return_value = "run-id"
         test_listing = ListingRecord(
             title="Translation Services",
@@ -654,6 +654,7 @@ class TestSearchUsedFilterLogic:
             language="en",
         )
         mock_scrape.return_value = ([test_listing], True)
+        mock_filter.return_value = [test_listing]
         mock_dedup.return_value = [test_listing]
         mock_validate.return_value = test_listing
         mock_embed.return_value = [test_listing]
@@ -668,7 +669,7 @@ class TestSearchUsedFilterLogic:
             )
         )
 
-        mock_filter.assert_not_called()
+        mock_filter.assert_called_once()
 
     @patch("scraper.pipeline.orchestrator.complete_run")
     @patch("scraper.pipeline.orchestrator.fail_run")
@@ -840,7 +841,7 @@ class TestSearchUsedFilterLogic:
         "scraper.pipeline.orchestrator.scrape_portal",
         new_callable=AsyncMock,
     )
-    def test_browser_search_used_true_skips_keyword_filter(
+    def test_browser_search_used_true_still_applies_keyword_filter(
         self,
         mock_scrape,
         mock_filter,
@@ -854,7 +855,7 @@ class TestSearchUsedFilterLogic:
         mock_conn,
         generic_portal,
     ):
-        """When browser search_used=True, keyword filter is NOT called."""
+        """When browser search_used=True, keyword filter still runs to validate results."""
         mock_start.return_value = "run-id"
         test_listing = ListingRecord(
             title="Translation Services",
@@ -863,6 +864,7 @@ class TestSearchUsedFilterLogic:
             language="en",
         )
         mock_scrape.return_value = ([test_listing], True)
+        mock_filter.return_value = [test_listing]
         mock_dedup.return_value = [test_listing]
         mock_validate.return_value = test_listing
         mock_embed.return_value = [test_listing]
@@ -876,7 +878,7 @@ class TestSearchUsedFilterLogic:
             )
         )
 
-        mock_filter.assert_not_called()
+        mock_filter.assert_called_once()
 
     @patch("scraper.pipeline.orchestrator.complete_run")
     @patch("scraper.pipeline.orchestrator.fail_run")

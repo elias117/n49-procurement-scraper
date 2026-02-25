@@ -130,11 +130,10 @@ async def process_portal(
                 listing_records.append(item)
 
         # Step 2.5: Keyword filtering
-        # Skip ONLY if keyword search was actually performed (search_used=True).
-        # If search box was not found (search_used=False), apply post-extraction
-        # filter per CONTEXT.md: "Search box not found: fall back to current
-        # behavior, apply keyword filter"
-        if keywords and not search_used:
+        # Always apply post-filter to validate listings actually contain our
+        # keywords. Portal search boxes can return loose/irrelevant matches
+        # (e.g. snow removal for "services" keywords).
+        if keywords:
             listing_records = filter_listings(listing_records, keywords)
 
         # Step 2.6: Deduplication (always runs -- safety net for all portals)
