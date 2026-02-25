@@ -62,6 +62,9 @@ async def browser_scrape(
                 headless=config.BROWSER_HEADLESS,
                 minimum_wait_page_load_time=config.BROWSER_WAIT_NETWORK_IDLE,
                 wait_between_actions=config.BROWSER_WAIT_BETWEEN_ACTIONS,
+                # Disable uBlock Origin and other default extensions --
+                # they block the AJAX requests that populate tender tables
+                enable_default_extensions=False,
             )
         )
 
