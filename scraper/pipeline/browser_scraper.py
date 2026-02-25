@@ -38,13 +38,12 @@ async def browser_scrape(
     # Lazy import: browser-use requires Python 3.11+ and Playwright.
     # These are available in the Docker runtime but may not be in dev/test.
     try:
-        from browser_use import Agent, Browser, BrowserProfile
-        from langchain_openai import ChatOpenAI
+        from browser_use import Agent, Browser, BrowserProfile, ChatOpenAI
     except ImportError:
         logger.error(
-            "browser-use or langchain-openai not installed. "
+            "browser-use not installed. "
             "Generic browser scraping requires Python 3.11+ with "
-            "browser-use and langchain-openai packages."
+            "browser-use package."
         )
         return []
 
@@ -67,6 +66,7 @@ async def browser_scrape(
         )
 
         # Create navigation agent with broad prompt for diverse portals
+        # browser-use 0.11 requires its own ChatOpenAI wrapper (not langchain's)
         agent = Agent(
             task=(
                 f"Navigate to {portal.url}. "
@@ -78,24 +78,26 @@ async def browser_scrape(
             ),
             llm=ChatOpenAI(model=config.OPENAI_EXTRACTION_MODEL),
             browser=browser,
-            max_actions_per_step=4,
-            max_failures=3,
             use_vision=False,
-            max_steps=config.BROWSER_MAX_STEPS,
         )
 
         # Run the navigation agent
         history = await agent.run(max_steps=config.BROWSER_MAX_STEPS)
 
-        # Get page HTML via the browser's current page
-        # browser-use exposes the Playwright page through the browser context
+        # Get page HTML from the browser's current page
         page = None
-        if hasattr(browser, "current_page"):
-            page = browser.current_page
-        elif hasattr(browser, "context") and browser.context:
-            pages = browser.context.pages
-            if pages:
-                page = pages[-1]
+        browser_context = None
+        try:
+            browser_context = await browser.new_context()
+            page = await browser_context.get_current_page()
+        except (AttributeError, TypeError):
+            # Fallback for different browser-use versions
+            if hasattr(browser, "current_page"):
+                page = browser.current_page
+            elif hasattr(browser, "context") and browser.context:
+                pages = browser.context.pages
+                if pages:
+                    page = pages[-1]
 
         if page is None:
             logger.error(
@@ -113,7 +115,7 @@ async def browser_scrape(
         for listing in listings:
             listing.source_portal = portal.id
 
-        steps_used = len(history) if history else 0
+        steps_used = history.number_of_steps() if history else 0
         logger.info(
             "Browser scrape complete for '%s' (%s): "
             "%d listings found, %d agent steps used",
