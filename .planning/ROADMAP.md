@@ -82,7 +82,7 @@ Plans:
 - [x] 4-01-PLAN.md — API extensions (listing detail, health, user auth, last-visit), users DB migration, Next.js scaffold with Auth.js, login page, dashboard shell
 - [x] 4-02-PLAN.md — Search page with nuqs URL state, debounced search bar, sidebar filters, decision-dense result cards, pagination, sort controls
 - [ ] 4-03-PLAN.md — Listing detail Sheet slide-out (documents, contacts, source link), "New" badge logic, data freshness indicator
-- [ ] 4-04-PLAN.md — Scraper health page with portal table, staleness indicators, Docker Compose integration
+- [x] 4-04-PLAN.md — Scraper health page with portal table, staleness indicators, Docker Compose integration
 
 ### Phase 5: Scheduling and Hardening
 **Goal**: The scraper runs automatically every night at 2 AM ET, monitoring alerts fire if anything goes wrong, and Docker Compose is hardened for production — the platform operates reliably without manual intervention.

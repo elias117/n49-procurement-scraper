@@ -37,7 +37,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **DASH-04**: User can log in with username and password (simple credentials auth)
 - [ ] **DASH-05**: Dashboard displays data freshness indicator showing when listings were last updated
 - [ ] **DASH-06**: Listings posted since the user's last visit are badged as "New"
-- [ ] **DASH-07**: User can view a scraper health page showing per-portal last-run status, success/fail, and listing count
+- [x] **DASH-07**: User can view a scraper health page showing per-portal last-run status, success/fail, and listing count
 - [x] **DASH-08**: Filter state is synced to the URL so searches are shareable via link
 - [ ] **DASH-09**: Listing detail displays document attachment links and contact information when available
 
@@ -113,7 +113,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-04 | Phase 4 | Pending |
 | DASH-05 | Phase 4 | Pending |
 | DASH-06 | Phase 4 | Pending |
-| DASH-07 | Phase 4 | Pending |
+| DASH-07 | Phase 4 | Complete (4-04) |
 | DASH-08 | Phase 4 | Complete (4-02) |
 | DASH-09 | Phase 4 | Pending |
 | INFR-01 | Phase 1 | Pending |
