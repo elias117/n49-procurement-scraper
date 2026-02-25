@@ -63,7 +63,14 @@ Last activity: 2026-02-25 — Phase 8 Plan 2 executed (orchestrator wiring for b
 - browser_scrape now receives keywords_by_category, consistent with bidsandtenders_scrape pattern
 - BrowserScrapeResult unpacked identically to BidsAndTendersResult in orchestrator dispatch
 
+## Quick Tasks Completed
+
+| Task | Date | Commits | Description |
+|------|------|---------|-------------|
+| QT-001 | 2026-02-25 | b11b979 | Fix portal filter 500 error — query builder was casting portal names as UUIDs |
+| QT-002 | 2026-02-25 | ff451c1 | Fix date display off-by-one — add timeZone: "UTC" to formatDate() |
+
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 8-02-PLAN.md — Phase 8 complete, all browser-use keyword search wired through orchestrator
+Stopped at: Fixed portal filter 500 (QT-001) and date timezone display (QT-002). DB diagnosis confirmed dates are correct — 897 listings, 219 distinct posting dates, 0 with posting==closing. User likely saw many CanadaBuys batch-published listings sharing the same posting date.

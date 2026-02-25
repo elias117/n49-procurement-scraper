@@ -16,7 +16,7 @@ Core Language and Translation,EN,localization support
 Core Language and Translation,EN,language services
 Core Language and Translation,EN,linguistic services
 Core Language and Translation,FR,services de traduction
-Core Language and Translation,FR,services d’interprétation
+Core Language and Translation,FR,services d'interprétation
 Core Language and Translation,FR,traduction écrite
 Core Language and Translation,FR,interprétation orale
 Core Language and Translation,FR,interprétation simultanée
@@ -30,23 +30,23 @@ Core Language and Translation,FR,traduction médicale
 Core Language and Translation,FR,services de localisation
 Core Language and Translation,FR,soutien à la localisation
 Core Language and Translation,FR,services linguistiques
-Multilingual Coverage,EN,multilingual services
-Multilingual Coverage,EN,multilingual support
-Multilingual Coverage,EN,multilingual communications
-Multilingual Coverage,EN,multilingual documentation
-Multilingual Coverage,EN,multilingual content
-Multilingual Coverage,EN,multiple languages
-Multilingual Coverage,EN,foreign language support
-Multilingual Coverage,EN,language coverage
-Multilingual Coverage,EN,language enablement
-Multilingual Coverage,EN,global language support
-Multilingual Coverage,FR,services multilingues
-Multilingual Coverage,FR,soutien multilingue
-Multilingual Coverage,FR,communications multilingues
-Multilingual Coverage,FR,documentation multilingue
-Multilingual Coverage,FR,contenu multilingue
-Multilingual Coverage,FR,plusieurs langues
-Multilingual Coverage,FR,soutien en langues étrangères
-Multilingual Coverage,FR,couverture linguistique
-Multilingual Coverage,FR,prise en charge linguistique
-Multilingual Coverage,FR,soutien linguistique mondial
+Multilingual Services,EN,multilingual services
+Multilingual Services,EN,multilingual communications
+Multilingual Services,EN,multilingual documentation
+Multilingual Services,EN,multilingual content
+Multilingual Services,FR,services multilingues
+Multilingual Services,FR,communications multilingues
+Multilingual Services,FR,documentation multilingue
+Multilingual Services,FR,contenu multilingue
+Specialized Translation Services,EN,transcription services
+Specialized Translation Services,EN,subtitling services
+Specialized Translation Services,EN,conference interpretation
+Specialized Translation Services,EN,court interpretation
+Specialized Translation Services,EN,translation and interpretation
+Specialized Translation Services,EN,terminology services
+Specialized Translation Services,FR,services de transcription
+Specialized Translation Services,FR,services de sous-titrage
+Specialized Translation Services,FR,interprétation de conférence
+Specialized Translation Services,FR,interprétation judiciaire
+Specialized Translation Services,FR,traduction et interprétation
+Specialized Translation Services,FR,services terminologiques
