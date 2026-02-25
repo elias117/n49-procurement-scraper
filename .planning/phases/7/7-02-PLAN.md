@@ -49,10 +49,12 @@ from scraper.pipeline.keywords import load_keywords, load_keywords_by_category, 
 async def scrape_portal(
     portal: PortalRecord,
     keywords_by_category: dict | None = None,
-) -> list:
+) -> tuple[list, bool]:
 ```
-- In the `bidsandtenders` branch: `return await bidsandtenders_scrape(portal, keywords_by_category=keywords_by_category)`
-- Other branches unchanged (canadabuys and browser don't use category keywords)
+- Return type is now `(listings, search_used)` — `search_used` is True when keyword search was actually performed (BidsAndTenders only)
+- In the `bidsandtenders` branch: `result = await bidsandtenders_scrape(portal, keywords_by_category=keywords_by_category); return result.listings, result.search_used`
+- Other branches: `return listings, False` (non-BidsAndTenders portals never use search-based filtering)
+- Import `BidsAndTendersResult` from `bidsandtenders.py` if needed for type hints
 
 **3. Modify `process_portal()` to accept and pass `keywords_by_category`:**
 ```python
@@ -60,14 +62,17 @@ async def process_portal(
     conn, portal: PortalRecord, keywords=None, keywords_by_category=None, skip_embeddings: bool = False
 ) -> dict:
 ```
-- Pass `keywords_by_category` to `scrape_portal()`: `raw_listings = await scrape_portal(portal, keywords_by_category=keywords_by_category)`
-- Change keyword filtering to skip BidsAndTenders portals:
+- Pass `keywords_by_category` to `scrape_portal()`: `raw_listings, search_used = await scrape_portal(portal, keywords_by_category=keywords_by_category)`
+- Change keyword filtering to conditionally skip based on `search_used` flag:
 ```python
-# Step 2.5: Keyword filtering (skip for BidsAndTenders -- search box already filtered)
-portal_type = classify_portal(portal)
-if keywords and portal_type != "bidsandtenders":
+# Step 2.5: Keyword filtering
+# Skip ONLY if keyword search was actually performed (search_used=True).
+# If search box was not found (search_used=False), apply post-extraction filter
+# per CONTEXT.md: "Search box not found: fall back to current behavior, apply keyword filter"
+if keywords and not search_used:
     listing_records = filter_listings(listing_records, keywords)
 ```
+- This correctly handles the fallback case: when a BidsAndTenders portal's search box is not found, `search_used=False` is returned, and keyword filtering is applied
 - Deduplication remains unchanged (runs for all portal types)
 
 **4. Modify `run_pipeline()` to load both keyword formats:**
@@ -101,11 +106,28 @@ mock_scrape.assert_called_once_with(bidsandtenders_portal, keywords_by_category=
 ```
 (Because `scrape_portal()` now passes `keywords_by_category` to `bidsandtenders_scrape()`.)
 
-Also add a test that verifies keywords_by_category is passed through:
+Also update the mock return value to return a `BidsAndTendersResult`:
+```python
+from scraper.pipeline.bidsandtenders import BidsAndTendersResult
+mock_scrape.return_value = BidsAndTendersResult(listings=[], search_used=False)
+```
+
+And update all callers of `scrape_portal()` to unpack the tuple return: `listings, search_used = await scrape_portal(...)`
+
+Also add tests that verify keywords_by_category pass-through and search_used flag:
 
 **`test_dispatch_bidsandtenders_with_keywords`:**
 - Call `scrape_portal(bidsandtenders_portal, keywords_by_category={"Cat1": {"EN": ["test"]}})`
 - Assert `bidsandtenders_scrape` called with `(portal, keywords_by_category={"Cat1": {"EN": ["test"]}})`
+
+**`test_scrape_portal_returns_search_used_flag`:**
+- Mock `bidsandtenders_scrape` to return `BidsAndTendersResult(listings=[...], search_used=True)`
+- Call `scrape_portal(bidsandtenders_portal, keywords_by_category={...})`
+- Assert return is `([...], True)`
+
+**`test_scrape_portal_non_bidsandtenders_returns_search_used_false`:**
+- Call `scrape_portal(generic_portal)` for a non-BidsAndTenders portal
+- Assert return is `(listings, False)`
 
 **2. Update `TestRunPipeline` tests:**
 
@@ -125,23 +147,29 @@ mock_process.assert_called_once_with(
 )
 ```
 
-**3. Add new test class `TestBidsAndTendersFilterSkip`:**
+**3. Add new test class `TestSearchUsedFilterLogic`:**
 
-**`test_bidsandtenders_skips_keyword_filter`:**
-- Mock `scrape_portal` to return a `ProcurementListing` with title "Office Furniture" (would NOT match keyword "translation")
+**`test_search_used_true_skips_keyword_filter`:**
+- Mock `scrape_portal` to return `(listings, search_used=True)` — simulates BidsAndTenders with working search box
 - Mock `filter_listings` to track if called
 - Call `process_portal(conn, bidsandtenders_portal, keywords=["translation"], keywords_by_category={...})`
-- Assert `filter_listings` was NOT called (BidsAndTenders skips post-extraction filter)
-- Assert the listing still proceeds through validation/embed/upsert
+- Assert `filter_listings` was NOT called (search was used, no post-filtering needed)
+
+**`test_search_used_false_applies_keyword_filter`:**
+- Mock `scrape_portal` to return `(listings, search_used=False)` — simulates BidsAndTenders where search box was NOT found (fallback)
+- Mock `filter_listings` to track if called
+- Call `process_portal(conn, bidsandtenders_portal, keywords=["translation"], keywords_by_category={...})`
+- Assert `filter_listings` WAS called (CONTEXT.md: search box not found = apply keyword filter)
 
 **`test_non_bidsandtenders_still_filters`:**
-- Same setup but with `generic_portal` (browser type)
+- Mock `scrape_portal` to return `(listings, search_used=False)` — non-BidsAndTenders portals never use search
+- Call `process_portal(conn, generic_portal, keywords=["translation"])`
 - Assert `filter_listings` WAS called
 
-**`test_bidsandtenders_still_deduplicates`:**
-- Mock `scrape_portal` to return listings with duplicate source_listing_ids
+**`test_all_portals_still_deduplicate`:**
+- Mock `scrape_portal` to return listings with duplicate source_listing_ids (both search_used=True and False cases)
 - Call `process_portal(conn, bidsandtenders_portal, ...)`
-- Assert `deduplicate_listings` was called (dedup runs for ALL portal types)
+- Assert `deduplicate_listings` was called (dedup runs for ALL portal types regardless of search_used)
 
 ### Task 3: Full test suite verification
 **Files:** (no file changes — verification only)
@@ -162,4 +190,4 @@ cd /Users/clawbot/dev && python -m pytest scraper/tests/test_bidsandtenders.py s
 ## Verification
 **Command:** `cd /Users/clawbot/dev && python -m pytest -x -q`
 **Expected:** All tests pass (full suite including updated orchestrator tests, new bidsandtenders tests, keyword tests)
-**Gate:** `run_pipeline()` loads keywords by category and passes them to BidsAndTenders scraper, BidsAndTenders portals skip post-extraction keyword filtering, non-BidsAndTenders portals still apply keyword filtering, deduplication runs for all portal types, all existing tests updated and green
+**Gate:** `run_pipeline()` loads keywords by category and passes them to BidsAndTenders scraper, keyword filtering is skipped ONLY when `search_used=True` (search box found and used), keyword filtering is applied when `search_used=False` (search box not found fallback, or non-BidsAndTenders portals), deduplication runs for all portal types, all existing tests updated and green

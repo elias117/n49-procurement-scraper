@@ -5,6 +5,7 @@ type: execute
 wave: 2
 depends_on:
   - 6-01
+  - 6-02
 files_modified:
   - scraper/db.py
   - scraper/pipeline/orchestrator.py

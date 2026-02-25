@@ -70,13 +70,26 @@ Add tests to `scraper/tests/test_keywords.py`:
 **Files:** `scraper/pipeline/bidsandtenders.py`, `scraper/tests/test_bidsandtenders.py`
 **Action:** MODIFY (bidsandtenders.py), CREATE (test_bidsandtenders.py)
 
-**Modify `bidsandtenders_scrape()` signature:**
+**Modify `bidsandtenders_scrape()` signature and return type:**
+
+Create a `BidsAndTendersResult` named tuple (or dataclass) at the top of `bidsandtenders.py`:
+```python
+from typing import NamedTuple
+
+class BidsAndTendersResult(NamedTuple):
+    listings: list[ProcurementListing]
+    search_used: bool  # True if keyword search was performed, False if fell back to full scrape
+```
+
+Update the function signature:
 ```python
 async def bidsandtenders_scrape(
     portal: PortalRecord,
     keywords_by_category: dict[str, dict[str, list[str]]] | None = None,
-) -> list[ProcurementListing]:
+) -> BidsAndTendersResult:
 ```
+
+The `search_used` flag tells the orchestrator (Plan 7-02) whether to apply post-extraction keyword filtering. When the search box is not found, `search_used=False` and the orchestrator MUST still apply keyword filtering (per CONTEXT.md: "Search box not found: fall back to current behavior, apply post-extraction keyword filter").
 
 **Add three helper functions (private, in same file):**
 
@@ -103,7 +116,7 @@ async def bidsandtenders_scrape(
 
 After the existing page.goto() and initial wait:
 
-1. Try to find search input. If not found OR keywords_by_category is None, fall back to original behavior (get page.content(), extract, return).
+1. Try to find search input. If not found OR keywords_by_category is None, fall back to original behavior (get page.content(), extract, return `BidsAndTendersResult(listings=..., search_used=False)`).
 
 2. Try to set results limit to 100: look for a "100" option in the page (e.g., `page.get_by_text("100")` near a "Limit Results" area). If found and visible, click it, wait for reload. If not found, continue with default limit. Do NOT fail if this doesn't work.
 
@@ -120,7 +133,7 @@ After the existing page.goto() and initial wait:
 
 4. Deduplicate `all_listings` using `deduplicate_listings()` from `keywords.py` -- BUT wait, `deduplicate_listings()` works on `ListingRecord` objects (it reads `.source_listing_id`). `ProcurementListing` also has `.source_listing_id`. Check: yes, `ProcurementListing` has `source_listing_id` field. The dedup function accesses `.source_listing_id` which exists on both types. So we can reuse it directly on `ProcurementListing` objects.
 
-5. Return deduplicated list.
+5. Return `BidsAndTendersResult(listings=deduplicated_list, search_used=True)`.
 
 6. Add `import random` and `from scraper.pipeline.keywords import select_keyword_batch, deduplicate_listings` to imports.
 
@@ -161,12 +174,19 @@ def _make_mock_page(search_visible=True, html_content="<html>...</html>"):
 
 **Class `TestSearchBoxNotFound`:**
 - `test_no_search_box_falls_back_to_full_scrape` — _find_search_input returns None, verify original behavior (extract from full page content)
+- `test_no_search_box_returns_search_used_false` — verify `result.search_used is False` when search box not found
 - `test_no_keywords_falls_back_to_full_scrape` — keywords_by_category=None, verify original behavior
+- `test_no_keywords_returns_search_used_false` — verify `result.search_used is False` when no keywords
 
 **Class `TestBidsAndTendersScrapeSignature`:**
 - `test_keywords_parameter_is_optional` — calling with just portal still works (backward compatible)
+- `test_returns_bidsandtenders_result` — verify return type is `BidsAndTendersResult` with `listings` and `search_used` fields
+- `test_search_used_true_when_search_performed` — verify `result.search_used is True` when keywords provided and search box found
 
 ## Verification
-**Command:** `cd /Users/clawbot/dev && python -m pytest scraper/tests/test_keywords.py scraper/tests/test_bidsandtenders.py -x -q`
+
+**Task 1 verify:** `cd /Users/clawbot/dev && python -m pytest scraper/tests/test_keywords.py -x -q`
+**Task 2 verify:** `cd /Users/clawbot/dev && python -m pytest scraper/tests/test_keywords.py scraper/tests/test_bidsandtenders.py -x -q`
+
 **Expected:** All tests pass (existing keyword tests + new category/batch tests + new bidsandtenders tests)
-**Gate:** `load_keywords_by_category()` returns correct structure from real CSV, `select_keyword_batch()` selects correct counts, `bidsandtenders_scrape()` performs keyword searches with OR queries and fallback, search box not found gracefully falls back to full scrape, results are deduplicated
+**Gate:** `load_keywords_by_category()` returns correct structure from real CSV, `select_keyword_batch()` selects correct counts, `bidsandtenders_scrape()` returns `BidsAndTendersResult` with correct `search_used` flag, keyword searches use OR queries with fallback, search box not found gracefully falls back to full scrape with `search_used=False`, results are deduplicated
