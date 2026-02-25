@@ -425,7 +425,7 @@ def purge_unmatched_listings(conn, keywords: list) -> int:
     with conn.cursor() as cur:
         for i in range(0, len(to_delete), batch_size):
             batch = to_delete[i:i + batch_size]
-            cur.execute("DELETE FROM listings WHERE id = ANY(%s)", (batch,))
+            cur.execute("DELETE FROM listings WHERE id = ANY(%s::uuid[])", (batch,))
             deleted += cur.rowcount
 
     logger.info(
