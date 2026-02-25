@@ -18,16 +18,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Search & Filtering
 
-- [ ] **SRCH-01**: User can perform full-text keyword search across listing title and description
-- [ ] **SRCH-02**: User can filter listings by closing date range (default: open/future dates only)
-- [ ] **SRCH-03**: User can filter listings by region/province
-- [ ] **SRCH-04**: User can filter listings by source portal
-- [ ] **SRCH-05**: User can filter listings by posting date range
-- [ ] **SRCH-06**: User can filter listings by category/commodity code (NAICS, UNSPSC, GSIN)
-- [ ] **SRCH-07**: User can perform natural language search that finds semantically similar listings via pgvector
-- [ ] **SRCH-08**: Hybrid search combines keyword + semantic results via Reciprocal Rank Fusion for best-of-both ranking
-- [ ] **SRCH-09**: User can filter listings by estimated contract value range
-- [ ] **SRCH-10**: User can sort results by posting date, closing date, relevance score, or contract value
+- [x] **SRCH-01**: User can perform full-text keyword search across listing title and description
+- [x] **SRCH-02**: User can filter listings by closing date range (default: open/future dates only)
+- [x] **SRCH-03**: User can filter listings by region/province
+- [x] **SRCH-04**: User can filter listings by source portal
+- [x] **SRCH-05**: User can filter listings by posting date range
+- [x] **SRCH-06**: User can filter listings by category/commodity code (NAICS, UNSPSC, GSIN)
+- [x] **SRCH-07**: User can perform natural language search that finds semantically similar listings via pgvector
+- [x] **SRCH-08**: Hybrid search combines keyword + semantic results via Reciprocal Rank Fusion for best-of-both ranking
+- [x] **SRCH-09**: User can filter listings by estimated contract value range
+- [x] **SRCH-10**: User can sort results by posting date, closing date, relevance score, or contract value
 
 ### Web Dashboard
 
@@ -97,16 +97,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCRP-04 | Phase 2 | Complete (2-02) |
 | SCRP-05 | Phase 2 | Complete (2-02) |
 | SCRP-06 | Phase 2 | Complete (2-01 upsert + 2-04 orchestrator) |
-| SRCH-01 | Phase 3 | Pending |
-| SRCH-02 | Phase 3 | Pending |
-| SRCH-03 | Phase 3 | Pending |
-| SRCH-04 | Phase 3 | Pending |
-| SRCH-05 | Phase 3 | Pending |
-| SRCH-06 | Phase 3 | Pending |
-| SRCH-07 | Phase 3 | Pending |
-| SRCH-08 | Phase 3 | Pending |
-| SRCH-09 | Phase 3 | Pending |
-| SRCH-10 | Phase 3 | Pending |
+| SRCH-01 | Phase 3 | Complete |
+| SRCH-02 | Phase 3 | Complete |
+| SRCH-03 | Phase 3 | Complete |
+| SRCH-04 | Phase 3 | Complete |
+| SRCH-05 | Phase 3 | Complete |
+| SRCH-06 | Phase 3 | Complete |
+| SRCH-07 | Phase 3 | Complete |
+| SRCH-08 | Phase 3 | Complete |
+| SRCH-09 | Phase 3 | Complete |
+| SRCH-10 | Phase 3 | Complete |
 | DASH-01 | Phase 4 | Pending |
 | DASH-02 | Phase 4 | Pending |
 | DASH-03 | Phase 4 | Pending |
