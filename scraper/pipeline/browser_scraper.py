@@ -14,6 +14,8 @@ fallback. Action history is inspected to detect whether a search was actually
 performed (search_used flag).
 """
 
+from __future__ import annotations
+
 import logging
 from typing import NamedTuple
 
