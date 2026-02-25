@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 3 of 5 (Search Layer) — IN PROGRESS
-Plan: 2 of 4 complete
-Status: Plan 3-02 complete — hybrid search engine with RRF, filter builder, 29 tests
-Last activity: 2026-02-24 — Plan 3-02 executed (7 tasks, 7 commits)
+Plan: 3 of 4 complete
+Status: Plan 3-03 complete — facets, ts_headline highlights, exact match mode, 43 tests
+Last activity: 2026-02-24 — Plan 3-03 executed (6 tasks, 7 commits)
 
-Progress: [#####.....] 50% (2/4 plans)
+Progress: [#######...] 75% (3/4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: ~6 min
-- Total execution time: ~44 min
+- Total execution time: ~50 min
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [#####.....] 50% (2/4 plans)
 |-------|-------|-------|----------|
 | 1 | 1/1 | ~15min | ~15min |
 | 2 | 4/4 | ~20min | ~5min |
-| 3 | 2/4 | ~9min | ~4.5min |
+| 3 | 3/4 | ~15min | ~5min |
 
 **Recent Trend:**
-- Last 5 plans: 2-02 (complete), 2-03 (complete), 2-04 (complete), 3-01 (complete), 3-02 (complete)
+- Last 5 plans: 2-03 (complete), 2-04 (complete), 3-01 (complete), 3-02 (complete), 3-03 (complete)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -76,6 +76,10 @@ Recent decisions affecting current work:
 - [Phase 3]: Python 3.9 compat: Optional[X] with __future__ annotations instead of X | None union syntax
 - [Phase 3]: Browse mode (empty query) falls back to posting_date DESC sort since relevance requires a query
 - [Phase 3]: Three SQL paths (browse, keyword-only, full hybrid) for clarity over conditional SQL assembly
+- [Phase 3]: bleach.clean with strip=True for XSS-safe ts_headline output -- strips all HTML except <mark> tags
+- [Phase 3]: ts_headline applied AFTER pagination on final result set only to avoid performance pitfall
+- [Phase 3]: Browse mode uses LEFT(COALESCE) for snippets since ts_headline requires a query
+- [Phase 3]: Exact match uses ILIKE with CASE-based ranking: title=0, source_listing_id=1, description=2
 
 ### Pending Todos
 
@@ -90,5 +94,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 3-02-PLAN.md
-Resume file: .planning/phases/3/3-03-PLAN.md
+Stopped at: Completed 3-03-PLAN.md
+Resume file: .planning/phases/3/3-04-PLAN.md

@@ -64,7 +64,7 @@ Plans:
 Plans:
 - [x] 3-01-PLAN.md — API foundation: FastAPI scaffold, DB connection, Pydantic models, Docker/nginx integration, schema migration, test infrastructure
 - [x] 3-02-PLAN.md — Core search engine: hybrid search (keyword + semantic + RRF), query embedding, filter construction, sort options
-- [ ] 3-03-PLAN.md — Search UX: facet counts, keyword highlights with XSS sanitization, exact match mode, pagination
+- [x] 3-03-PLAN.md — Search UX: facet counts, keyword highlights with XSS sanitization, exact match mode, pagination
 - [ ] 3-04-PLAN.md — Integration validation: 20-query benchmark against real data, end-to-end verification
 
 ### Phase 4: Web Application
@@ -99,6 +99,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 1/1 | Complete | 2026-02-24 |
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
-| 3. Search Layer | 2/4 | In progress | - |
+| 3. Search Layer | 3/4 | In progress | - |
 | 4. Web Application | 0/TBD | Not started | - |
 | 5. Scheduling and Hardening | 0/TBD | Not started | - |
