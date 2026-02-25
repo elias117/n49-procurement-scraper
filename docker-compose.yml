@@ -26,6 +26,20 @@ services:
     networks:
       - internal
 
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    networks:
+      - internal
+
   web:
     build: ./web
     restart: unless-stopped
@@ -50,6 +64,7 @@ services:
       - certbot_var:/var/www/certbot
     depends_on:
       - web
+      - api
     networks:
       - internal
 
