@@ -16,6 +16,7 @@ from scraper.models import (
     ProcurementListing,
 )
 from scraper.pipeline.bidsandtenders import BidsAndTendersResult
+from scraper.pipeline.browser_scraper import BrowserScrapeResult
 from scraper.pipeline.orchestrator import (
     classify_portal,
     scrape_portal,
@@ -215,13 +216,13 @@ class TestScrapePortal:
     )
     def test_dispatch_browser(self, mock_scrape, generic_portal):
         """Generic portal dispatches to browser_scrape and returns (listings, False)."""
-        mock_scrape.return_value = []
+        mock_scrape.return_value = BrowserScrapeResult(listings=[], search_used=False)
 
         listings, search_used = asyncio.get_event_loop().run_until_complete(
             scrape_portal(generic_portal)
         )
 
-        mock_scrape.assert_called_once_with(generic_portal)
+        mock_scrape.assert_called_once_with(generic_portal, keywords_by_category=None)
         assert listings == []
         assert search_used is False
 
@@ -232,12 +233,14 @@ class TestScrapePortal:
     def test_scrape_portal_non_bidsandtenders_returns_search_used_false(
         self, mock_scrape, generic_portal
     ):
-        """Non-BidsAndTenders portals always return search_used=False."""
+        """Non-BidsAndTenders portals return search_used from BrowserScrapeResult."""
         mock_listing = ListingRecord(
             title="Test", source_portal="portal-gen-001",
             source_listing_id="GEN-001", language="en",
         )
-        mock_scrape.return_value = [mock_listing]
+        mock_scrape.return_value = BrowserScrapeResult(
+            listings=[mock_listing], search_used=False
+        )
 
         listings, search_used = asyncio.get_event_loop().run_until_complete(
             scrape_portal(generic_portal)
@@ -245,6 +248,24 @@ class TestScrapePortal:
 
         assert listings == [mock_listing]
         assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.browser_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_browser_with_keywords(self, mock_scrape, generic_portal):
+        """Browser portals pass keywords_by_category through to browser_scrape."""
+        kw_by_cat = {"Cat1": {"EN": ["translation"]}}
+        mock_scrape.return_value = BrowserScrapeResult(listings=[], search_used=True)
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(generic_portal, keywords_by_category=kw_by_cat)
+        )
+
+        mock_scrape.assert_called_once_with(
+            generic_portal, keywords_by_category=kw_by_cat
+        )
+        assert search_used is True
 
 
 # ---------------------------------------------------------------------------
@@ -806,3 +827,104 @@ class TestSearchUsedFilterLogic:
         )
 
         mock_dedup.assert_called_once()
+
+    @patch("scraper.pipeline.orchestrator.complete_run")
+    @patch("scraper.pipeline.orchestrator.fail_run")
+    @patch("scraper.pipeline.orchestrator.start_run")
+    @patch("scraper.pipeline.orchestrator.upsert_listings")
+    @patch("scraper.pipeline.orchestrator.generate_embeddings")
+    @patch("scraper.pipeline.orchestrator.validate_and_score")
+    @patch("scraper.pipeline.orchestrator.deduplicate_listings")
+    @patch("scraper.pipeline.orchestrator.filter_listings")
+    @patch(
+        "scraper.pipeline.orchestrator.scrape_portal",
+        new_callable=AsyncMock,
+    )
+    def test_browser_search_used_true_skips_keyword_filter(
+        self,
+        mock_scrape,
+        mock_filter,
+        mock_dedup,
+        mock_validate,
+        mock_embed,
+        mock_upsert,
+        mock_start,
+        mock_fail,
+        mock_complete,
+        mock_conn,
+        generic_portal,
+    ):
+        """When browser search_used=True, keyword filter is NOT called."""
+        mock_start.return_value = "run-id"
+        test_listing = ListingRecord(
+            title="Translation Services",
+            source_portal="portal-gen-001",
+            source_listing_id="GEN-001",
+            language="en",
+        )
+        mock_scrape.return_value = ([test_listing], True)
+        mock_dedup.return_value = [test_listing]
+        mock_validate.return_value = test_listing
+        mock_embed.return_value = [test_listing]
+        mock_upsert.return_value = {"found": 1, "new": 1, "updated": 0}
+
+        asyncio.get_event_loop().run_until_complete(
+            process_portal(
+                mock_conn, generic_portal,
+                keywords=["translation"],
+                keywords_by_category={"Cat": {"EN": ["translation"]}},
+            )
+        )
+
+        mock_filter.assert_not_called()
+
+    @patch("scraper.pipeline.orchestrator.complete_run")
+    @patch("scraper.pipeline.orchestrator.fail_run")
+    @patch("scraper.pipeline.orchestrator.start_run")
+    @patch("scraper.pipeline.orchestrator.upsert_listings")
+    @patch("scraper.pipeline.orchestrator.generate_embeddings")
+    @patch("scraper.pipeline.orchestrator.validate_and_score")
+    @patch("scraper.pipeline.orchestrator.deduplicate_listings")
+    @patch("scraper.pipeline.orchestrator.filter_listings")
+    @patch(
+        "scraper.pipeline.orchestrator.scrape_portal",
+        new_callable=AsyncMock,
+    )
+    def test_browser_search_used_false_applies_keyword_filter(
+        self,
+        mock_scrape,
+        mock_filter,
+        mock_dedup,
+        mock_validate,
+        mock_embed,
+        mock_upsert,
+        mock_start,
+        mock_fail,
+        mock_complete,
+        mock_conn,
+        generic_portal,
+    ):
+        """When browser search_used=False, keyword filter IS applied."""
+        mock_start.return_value = "run-id"
+        test_listing = ListingRecord(
+            title="Translation Services",
+            source_portal="portal-gen-001",
+            source_listing_id="GEN-001",
+            language="en",
+        )
+        mock_scrape.return_value = ([test_listing], False)
+        mock_filter.return_value = [test_listing]
+        mock_dedup.return_value = [test_listing]
+        mock_validate.return_value = test_listing
+        mock_embed.return_value = [test_listing]
+        mock_upsert.return_value = {"found": 1, "new": 1, "updated": 0}
+
+        asyncio.get_event_loop().run_until_complete(
+            process_portal(
+                mock_conn, generic_portal,
+                keywords=["translation"],
+                keywords_by_category={"Cat": {"EN": ["translation"]}},
+            )
+        )
+
+        mock_filter.assert_called_once()
