@@ -11,7 +11,8 @@ The BD team can search all 63 government procurement portals from one place, usi
 ## Current State
 
 **Shipped:** v1.0 (2026-02-24)
-**Status:** Feature-complete, ready for production use
+**In Progress:** v1.5 — Keyword-Filtered Scraping
+**Status:** v1.5 planning complete, ready for execution
 
 ### What's Live
 - Nightly scraping of 63 Canadian procurement portals (2 AM ET)
@@ -21,13 +22,20 @@ The BD team can search all 63 government procurement portals from one place, usi
 - Docker Compose on EC2 (ca-central-1) with Terraform, Nginx TLS
 - Automated retention cleanup and Docker image pruning
 
+### v1.5 Goals
+- Keyword-filtered scraping: only retrieve listings matching 122 translation/language keywords
+- CanadaBuys: client-side keyword filtering on CSV download
+- BidsAndTenders: Playwright search interface keyword queries
+- Browser-use portals: AI agent searches for keywords via portal search forms
+- Purge existing non-matching listings from database
+
 ### Known Tech Debt
 - `reference_number` extracted but not persisted to database
 - robots.txt compliance audit not yet performed
 
-## Next Milestone Goals
+## Future Milestone Goals
 
-Candidates for v2 (to be refined during `/gsd:new-milestone`):
+Candidates for v2:
 - Email alerts / saved search notifications
 - Saved search profiles
 - Bookmark/flag listings

@@ -5,13 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** The BD team can search all 63 government procurement portals from one place, using both precise filters and natural language, and find relevant opportunities they would otherwise miss.
-**Current focus:** v1.0 shipped — milestone archived
+**Current focus:** v1.5 — Keyword-Filtered Scraping
 
 ## Current Position
 
-Milestone: v1.0 — COMPLETE AND ARCHIVED
-Status: Ready for v2 planning
-Last activity: 2026-02-25 — v1.0 milestone audit passed, archived
+Milestone: v1.5 — Keyword-Filtered Scraping
+Phase: 6 (not yet started)
+Status: Planning complete, ready for `/gsd:plan-phase 6`
+Last activity: 2026-02-25 — v1.5 milestone defined (10 requirements, 3 phases)
 
 ## Milestone History
 
@@ -32,7 +33,7 @@ Last activity: 2026-02-25 — v1.0 milestone audit passed, archived
 - reference_number column missing (scraper extracts, DB doesn't persist)
 - robots.txt compliance audit deferred
 
-### v2 Candidates
+### v2 Candidates (Deferred)
 - Email alerts / saved search notifications (NOTF-01, NOTF-02)
 - Saved search profiles (ADVN-01)
 - Bookmark/flag listings (ADVN-02)
@@ -40,7 +41,15 @@ Last activity: 2026-02-25 — v1.0 milestone audit passed, archived
 - Cross-portal deduplication (ADVN-04)
 - CloudWatch monitoring (MNTR-01, MNTR-02, MNTR-03)
 
+### v1.5 Key Context
+- Keywords CSV: 122 keywords, 6 categories, EN + FR
+- Categories: Core Language/Translation, Official Languages/Bilingualism, Multilingual Coverage, Communications/Engagement, Procurement Vehicle Signals
+- CanadaBuys: filter client-side after CSV download (no API switch needed)
+- BidsAndTenders: ~29 portals share identical UI, use Playwright search box
+- Browser-use: ~13 enabled portals, modify agent prompt to search for keywords
+- Purge: DELETE existing listings not matching any keyword
+
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: v1.0 milestone archived — ready for /gsd:new-milestone
+Stopped at: v1.5 milestone planned — next: `/gsd:plan-phase 6`
