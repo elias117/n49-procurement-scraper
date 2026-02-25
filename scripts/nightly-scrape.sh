@@ -21,7 +21,7 @@ COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 flock -n "$LOCKFILE" \
   $COMPOSE exec -T scraper \
     xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
-    python main.py
+    python scraper/main.py
 
 SCRAPE_EXIT=$?
 

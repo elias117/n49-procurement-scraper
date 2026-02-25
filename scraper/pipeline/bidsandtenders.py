@@ -38,7 +38,7 @@ async def bidsandtenders_scrape(
     # Lazy import: browser-use requires Python 3.11+ and Playwright.
     # These are available in the Docker runtime but may not be in dev/test.
     try:
-        from browser_use import Agent, Browser
+        from browser_use import Agent, Browser, BrowserProfile
         from langchain_openai import ChatOpenAI
     except ImportError:
         logger.error(
@@ -64,11 +64,11 @@ async def bidsandtenders_scrape(
         # Create browser with extended AJAX wait time
         # headless=False is REQUIRED -- POC confirmed headless=True gets 403-blocked
         browser = Browser(
-            config={
-                "headless": config.BROWSER_HEADLESS,
-                "wait_for_network_idle_page_load_time": 3.0,
-                "wait_between_actions": config.BROWSER_WAIT_BETWEEN_ACTIONS,
-            }
+            browser_profile=BrowserProfile(
+                headless=config.BROWSER_HEADLESS,
+                minimum_wait_page_load_time=3.0,
+                wait_between_actions=config.BROWSER_WAIT_BETWEEN_ACTIONS,
+            )
         )
 
         # Create navigation agent
