@@ -20,7 +20,7 @@ from scraper.db import (
     purge_unmatched_listings,
     upsert_listings,
 )
-from scraper.pipeline.keywords import load_keywords, filter_listings, deduplicate_listings
+from scraper.pipeline.keywords import load_keywords, load_keywords_by_category, filter_listings, deduplicate_listings
 from scraper.models import PortalRecord, ProcurementListing, to_listing_record
 from scraper.pipeline.audit import start_run, complete_run, fail_run
 from scraper.pipeline.canadabuys import canadabuys_ingest
@@ -49,28 +49,40 @@ def classify_portal(portal: PortalRecord) -> str:
     return "browser"
 
 
-async def scrape_portal(portal: PortalRecord) -> list:
+async def scrape_portal(
+    portal: PortalRecord,
+    keywords_by_category: dict | None = None,
+) -> tuple[list, bool]:
     """
     Dispatch a portal to the correct scraper handler.
 
     Args:
         portal: The portal to scrape.
+        keywords_by_category: Optional category-grouped keywords for
+            BidsAndTenders keyword search.
 
     Returns:
-        List of ProcurementListing (canadabuys returns ListingRecord directly).
+        Tuple of (listings, search_used). search_used is True when keyword
+        search was actually performed (BidsAndTenders only).
     """
     portal_type = classify_portal(portal)
 
     if portal_type == "canadabuys":
-        return await canadabuys_ingest(portal)
+        listings = await canadabuys_ingest(portal)
+        return listings, False
     elif portal_type == "bidsandtenders":
-        return await bidsandtenders_scrape(portal)
+        result = await bidsandtenders_scrape(
+            portal, keywords_by_category=keywords_by_category
+        )
+        return result.listings, result.search_used
     else:
-        return await browser_scrape(portal)
+        listings = await browser_scrape(portal)
+        return listings, False
 
 
 async def process_portal(
-    conn, portal: PortalRecord, keywords=None, skip_embeddings: bool = False
+    conn, portal: PortalRecord, keywords=None, keywords_by_category=None,
+    skip_embeddings: bool = False,
 ) -> dict:
     """
     Full pipeline for ONE portal: scrape -> validate -> embed -> upsert -> audit.
@@ -81,6 +93,9 @@ async def process_portal(
     Args:
         conn: psycopg2 connection.
         portal: The portal to process.
+        keywords: Flat keyword list for post-extraction filtering.
+        keywords_by_category: Category-grouped keywords for BidsAndTenders search.
+        skip_embeddings: If True, skip embedding generation.
 
     Returns:
         Dict with keys: found, new, updated (and optionally "error").
@@ -89,7 +104,9 @@ async def process_portal(
 
     try:
         # Step 1: Scrape
-        raw_listings = await scrape_portal(portal)
+        raw_listings, search_used = await scrape_portal(
+            portal, keywords_by_category=keywords_by_category
+        )
         logger.info(
             "Portal %s: %d raw listings scraped", portal.name, len(raw_listings)
         )
@@ -107,8 +124,12 @@ async def process_portal(
                 # Already a ListingRecord (e.g., from canadabuys)
                 listing_records.append(item)
 
-        # Step 2.5: Keyword filtering (if keywords provided)
-        if keywords:
+        # Step 2.5: Keyword filtering
+        # Skip ONLY if keyword search was actually performed (search_used=True).
+        # If search box was not found (search_used=False), apply post-extraction
+        # filter per CONTEXT.md: "Search box not found: fall back to current
+        # behavior, apply keyword filter"
+        if keywords and not search_used:
             listing_records = filter_listings(listing_records, keywords)
 
         # Step 2.6: Deduplication (always runs -- safety net for all portals)
@@ -174,6 +195,7 @@ async def run_pipeline(
     """
     # Load keywords at startup (fail-safe: SystemExit if missing/malformed)
     keywords = load_keywords()
+    keywords_by_category = load_keywords_by_category()
 
     with db_connection() as conn:
         if portal_name:
@@ -191,7 +213,12 @@ async def run_pipeline(
             logger.info(
                 "--- Processing portal: %s (%s) ---", portal.name, portal.url
             )
-            stats = await process_portal(conn, portal, keywords=keywords, skip_embeddings=skip_embeddings)
+            stats = await process_portal(
+                conn, portal,
+                keywords=keywords,
+                keywords_by_category=keywords_by_category,
+                skip_embeddings=skip_embeddings,
+            )
             results[portal.name] = stats
 
         # Purge non-matching listings from database (PURG-01)
