@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** The BD team can search all 63 government procurement portals from one place, using both precise filters and natural language, and find relevant opportunities they would otherwise miss.
-**Current focus:** Phase 4 - Web Application (PLANNED)
+**Current focus:** Phase 4 - Web Application (IN PROGRESS)
 
 ## Current Position
 
-Phase: 4 of 5 (Web Application) — PLANNED
-Plan: 0 of TBD complete
-Status: Phase 3 verified and complete — advancing to Phase 4
-Last activity: 2026-02-24 — Phase 3 verification passed (5/5 must-haves)
+Phase: 4 of 5 (Web Application) — IN PROGRESS
+Plan: 1 of 4 complete
+Status: Plan 4-01 complete — API endpoints, users migration, Next.js scaffold with Auth.js
+Last activity: 2026-02-24 — Plan 4-01 complete (API + Next.js scaffold)
 
-Progress: [..........] 0% (0/TBD plans)
+Progress: [##........] 25% (1/4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: ~6 min
-- Total execution time: ~53 min
+- Total execution time: ~57 min
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: [..........] 0% (0/TBD plans)
 | 1 | 1/1 | ~15min | ~15min |
 | 2 | 4/4 | ~20min | ~5min |
 | 3 | 4/4 | ~18min | ~4.5min |
+| 4 | 1/4 | ~4min | ~4min |
 
 **Recent Trend:**
-- Last 5 plans: 2-04 (complete), 3-01 (complete), 3-02 (complete), 3-03 (complete), 3-04 (complete)
+- Last 5 plans: 3-01 (complete), 3-02 (complete), 3-03 (complete), 3-04 (complete), 4-01 (complete)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -82,6 +83,10 @@ Recent decisions affecting current work:
 - [Phase 3]: Exact match uses ILIKE with CASE-based ranking: title=0, source_listing_id=1, description=2
 - [Phase 3]: Benchmark tests use httpx against live API (not TestClient) to validate full HTTP stack
 - [Phase 3]: Integration tests skip automatically when DATABASE_URL not set (CI-safe)
+- [Phase 4]: Auth.js v5 credentials provider with bcryptjs in Next.js layer (not API layer) for password verification
+- [Phase 4]: JWT session strategy with 30-day maxAge for persistent BD team login
+- [Phase 4]: Standalone Next.js output mode for Docker deployment readiness
+- [Phase 4]: NuqsAdapter at root layout level for URL-encoded search state in all pages
 
 ### Pending Todos
 
@@ -96,5 +101,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Phase 3 verified — ready for Phase 4 planning
-Resume file: .planning/ROADMAP.md (Phase 4 - Web Application)
+Stopped at: Completed 4-01-PLAN.md
+Resume file: .planning/phases/4/4-02-PLAN.md (next plan to execute)
