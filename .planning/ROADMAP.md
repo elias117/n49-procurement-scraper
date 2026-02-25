@@ -13,6 +13,11 @@
 ### Phase 6: Keyword Infrastructure + CanadaBuys Filtering + Data Purge
 **Goal:** The keyword loading module exists, CanadaBuys listings are filtered by keyword match on title/description, existing non-matching listings are purged, and deduplication logic is in place — ready for other scrapers to use.
 **Requirements:** KWRD-01, KWRD-02, KWRD-03, FILT-01, FILT-05, PURG-01, PURG-02
+**Plans:** 3 plans
+Plans:
+- [ ] 6-01-PLAN.md — Keyword module: load, match, filter, dedup functions + unit tests
+- [ ] 6-02-PLAN.md — Orchestrator integration: wire keywords into pipeline + Dockerfile COPY
+- [ ] 6-03-PLAN.md — Purge: delete non-matching listings from database + tests
 **Success Criteria:**
   1. Keywords CSV is loaded and parsed correctly (122 keywords, 6 categories, 2 languages)
   2. CanadaBuys scraper filters listings — only keyword-matching listings are upserted
