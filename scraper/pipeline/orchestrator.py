@@ -27,7 +27,7 @@ from scraper.models import PortalRecord, ProcurementListing, to_listing_record
 from scraper.pipeline.audit import start_run, complete_run, fail_run
 from scraper.pipeline.canadabuys import canadabuys_ingest
 from scraper.pipeline.bidsandtenders import bidsandtenders_scrape
-from scraper.pipeline.browser_scraper import browser_scrape
+from scraper.pipeline.browser_scraper import browser_scrape, BrowserScrapeResult
 from scraper.pipeline.validation import validate_and_score
 from scraper.pipeline.embeddings import generate_embeddings
 
@@ -61,11 +61,12 @@ async def scrape_portal(
     Args:
         portal: The portal to scrape.
         keywords_by_category: Optional category-grouped keywords for
-            BidsAndTenders keyword search.
+            BidsAndTenders and browser-use keyword search.
 
     Returns:
         Tuple of (listings, search_used). search_used is True when keyword
-        search was actually performed (BidsAndTenders only).
+        search was actually performed (BidsAndTenders or browser-use portals
+        with search form found).
     """
     portal_type = classify_portal(portal)
 
@@ -78,8 +79,10 @@ async def scrape_portal(
         )
         return result.listings, result.search_used
     else:
-        listings = await browser_scrape(portal)
-        return listings, False
+        result = await browser_scrape(
+            portal, keywords_by_category=keywords_by_category
+        )
+        return result.listings, result.search_used
 
 
 async def process_portal(
