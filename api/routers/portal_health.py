@@ -45,6 +45,8 @@ def portal_health():
                     p.id AS portal_id,
                     p.name,
                     p.url,
+                    p.level,
+                    p.province,
                     p.enabled,
                     ps.recent_failures,
                     ps.recent_total,

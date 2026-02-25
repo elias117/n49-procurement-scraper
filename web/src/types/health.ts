@@ -6,6 +6,8 @@ export interface PortalHealth {
   portal_id: string;
   name: string;
   url: string;
+  level: "federal" | "provincial" | "municipal";
+  province: string | null;
   enabled: boolean;
   recent_failures: number | null;
   recent_total: number | null;
