@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Infrastructure** - Provision EC2, Docker Compose scaffold, PostgreSQL schema, Nginx/TLS — the foundation everything else builds on
 - [x] **Phase 2: Scraper Pipeline** - Browser-use + instructor extraction pipeline that populates listings across all 63 portals
-- [ ] **Phase 3: Search Layer** - Hybrid keyword + semantic search API with full filter suite and Reciprocal Rank Fusion ranking
+- [x] **Phase 3: Search Layer** - Hybrid keyword + semantic search API with full filter suite and Reciprocal Rank Fusion ranking
 - [ ] **Phase 4: Web Application** - Next.js dashboard with auth, search UI, listing detail, and scraper health page
 - [ ] **Phase 5: Scheduling and Hardening** - Nightly cron automation, CloudWatch alerting, per-portal yield monitoring, production Docker hardening
 
@@ -65,7 +65,7 @@ Plans:
 - [x] 3-01-PLAN.md — API foundation: FastAPI scaffold, DB connection, Pydantic models, Docker/nginx integration, schema migration, test infrastructure
 - [x] 3-02-PLAN.md — Core search engine: hybrid search (keyword + semantic + RRF), query embedding, filter construction, sort options
 - [x] 3-03-PLAN.md — Search UX: facet counts, keyword highlights with XSS sanitization, exact match mode, pagination
-- [ ] 3-04-PLAN.md — Integration validation: 20-query benchmark against real data, end-to-end verification
+- [x] 3-04-PLAN.md — Integration validation: 20-query benchmark against real data, end-to-end verification
 
 ### Phase 4: Web Application
 **Goal**: The BD team can log in, search all 63 portals from one dashboard, view listing details, and monitor scraper health — the platform is usable for daily work.
@@ -99,6 +99,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 1/1 | Complete | 2026-02-24 |
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
-| 3. Search Layer | 3/4 | In progress | - |
+| 3. Search Layer | 4/4 | Complete | 2026-02-24 |
 | 4. Web Application | 0/TBD | Not started | - |
 | 5. Scheduling and Hardening | 0/TBD | Not started | - |
