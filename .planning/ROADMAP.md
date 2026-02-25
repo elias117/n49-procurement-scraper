@@ -77,7 +77,12 @@ Plans:
   3. Listings posted since the user's last visit are visibly badged as "New" on the results list
   4. The current search and filter state is encoded in the URL so a user can share a filtered search via link and the recipient sees the same results
   5. A scraper health page shows each portal's last-run date, success/fail status, and listing count, and the dashboard displays a data freshness indicator showing when listings were last updated
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 4-01-PLAN.md — API extensions (listing detail, health, user auth, last-visit), users DB migration, Next.js scaffold with Auth.js, login page, dashboard shell
+- [ ] 4-02-PLAN.md — Search page with nuqs URL state, debounced search bar, sidebar filters, decision-dense result cards, pagination, sort controls
+- [ ] 4-03-PLAN.md — Listing detail Sheet slide-out (documents, contacts, source link), "New" badge logic, data freshness indicator
+- [ ] 4-04-PLAN.md — Scraper health page with portal table, staleness indicators, Docker Compose integration
 
 ### Phase 5: Scheduling and Hardening
 **Goal**: The scraper runs automatically every night at 2 AM ET, monitoring alerts fire if anything goes wrong, and Docker Compose is hardened for production — the platform operates reliably without manual intervention.
@@ -100,5 +105,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Infrastructure | 1/1 | Complete | 2026-02-24 |
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
 | 3. Search Layer | 4/4 | Complete | 2026-02-24 |
-| 4. Web Application | 0/TBD | Not started | - |
+| 4. Web Application | 0/4 | In progress | - |
 | 5. Scheduling and Hardening | 0/TBD | Not started | - |
