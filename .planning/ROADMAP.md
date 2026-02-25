@@ -80,7 +80,7 @@ Plans:
 **Plans**: 4 plans
 Plans:
 - [x] 4-01-PLAN.md — API extensions (listing detail, health, user auth, last-visit), users DB migration, Next.js scaffold with Auth.js, login page, dashboard shell
-- [ ] 4-02-PLAN.md — Search page with nuqs URL state, debounced search bar, sidebar filters, decision-dense result cards, pagination, sort controls
+- [x] 4-02-PLAN.md — Search page with nuqs URL state, debounced search bar, sidebar filters, decision-dense result cards, pagination, sort controls
 - [ ] 4-03-PLAN.md — Listing detail Sheet slide-out (documents, contacts, source link), "New" badge logic, data freshness indicator
 - [ ] 4-04-PLAN.md — Scraper health page with portal table, staleness indicators, Docker Compose integration
 
@@ -105,5 +105,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Infrastructure | 1/1 | Complete | 2026-02-24 |
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
 | 3. Search Layer | 4/4 | Complete | 2026-02-24 |
-| 4. Web Application | 1/4 | In progress | - |
+| 4. Web Application | 2/4 | In progress | - |
 | 5. Scheduling and Hardening | 0/TBD | Not started | - |

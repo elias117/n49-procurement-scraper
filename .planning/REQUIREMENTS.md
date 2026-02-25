@@ -31,14 +31,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Web Dashboard
 
-- [ ] **DASH-01**: User can view paginated listing results in a searchable table
+- [x] **DASH-01**: User can view paginated listing results in a searchable table
 - [ ] **DASH-02**: User can click a listing to view full detail including all extracted fields
 - [ ] **DASH-03**: Listing detail includes a link to the original source portal page
 - [ ] **DASH-04**: User can log in with username and password (simple credentials auth)
 - [ ] **DASH-05**: Dashboard displays data freshness indicator showing when listings were last updated
 - [ ] **DASH-06**: Listings posted since the user's last visit are badged as "New"
 - [ ] **DASH-07**: User can view a scraper health page showing per-portal last-run status, success/fail, and listing count
-- [ ] **DASH-08**: Filter state is synced to the URL so searches are shareable via link
+- [x] **DASH-08**: Filter state is synced to the URL so searches are shareable via link
 - [ ] **DASH-09**: Listing detail displays document attachment links and contact information when available
 
 ### Infrastructure
@@ -107,14 +107,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SRCH-08 | Phase 3 | Complete |
 | SRCH-09 | Phase 3 | Complete |
 | SRCH-10 | Phase 3 | Complete |
-| DASH-01 | Phase 4 | Pending |
+| DASH-01 | Phase 4 | Complete (4-02) |
 | DASH-02 | Phase 4 | Pending |
 | DASH-03 | Phase 4 | Pending |
 | DASH-04 | Phase 4 | Pending |
 | DASH-05 | Phase 4 | Pending |
 | DASH-06 | Phase 4 | Pending |
 | DASH-07 | Phase 4 | Pending |
-| DASH-08 | Phase 4 | Pending |
+| DASH-08 | Phase 4 | Complete (4-02) |
 | DASH-09 | Phase 4 | Pending |
 | INFR-01 | Phase 1 | Pending |
 | INFR-02 | Phase 1 | Pending |

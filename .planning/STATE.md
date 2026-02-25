@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 4 of 5 (Web Application) — IN PROGRESS
-Plan: 1 of 4 complete
-Status: Plan 4-01 complete — API endpoints, users migration, Next.js scaffold with Auth.js
-Last activity: 2026-02-24 — Plan 4-01 complete (API + Next.js scaffold)
+Plan: 2 of 4 complete
+Status: Plan 4-02 complete — Search page with URL state, filters, result cards, pagination
+Last activity: 2026-02-24 — Plan 4-02 complete (search page UI)
 
-Progress: [##........] 25% (1/4 plans)
+Progress: [#####.....] 50% (2/4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: ~6 min
-- Total execution time: ~57 min
+- Total execution time: ~61 min
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [##........] 25% (1/4 plans)
 | 1 | 1/1 | ~15min | ~15min |
 | 2 | 4/4 | ~20min | ~5min |
 | 3 | 4/4 | ~18min | ~4.5min |
-| 4 | 1/4 | ~4min | ~4min |
+| 4 | 2/4 | ~8min | ~4min |
 
 **Recent Trend:**
-- Last 5 plans: 3-01 (complete), 3-02 (complete), 3-03 (complete), 3-04 (complete), 4-01 (complete)
+- Last 5 plans: 3-02 (complete), 3-03 (complete), 3-04 (complete), 4-01 (complete), 4-02 (complete)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -87,6 +87,10 @@ Recent decisions affecting current work:
 - [Phase 4]: JWT session strategy with 30-day maxAge for persistent BD team login
 - [Phase 4]: Standalone Next.js output mode for Docker deployment readiness
 - [Phase 4]: NuqsAdapter at root layout level for URL-encoded search state in all pages
+- [Phase 4]: Suspense boundary wrapping DashboardContent because nuqs useQueryStates reads URL search params at render time
+- [Phase 4]: setFilter helper resets page to 1 to prevent empty-page navigation after filter changes
+- [Phase 4]: AbortController cancels in-flight requests when params change to prevent stale responses
+- [Phase 4]: Result cards show only search API fields; status and classification_codes deferred to detail panel (4-03)
 
 ### Pending Todos
 
@@ -101,5 +105,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 4-01-PLAN.md
-Resume file: .planning/phases/4/4-02-PLAN.md (next plan to execute)
+Stopped at: Completed 4-02-PLAN.md
+Resume file: .planning/phases/4/4-03-PLAN.md (next plan to execute)
