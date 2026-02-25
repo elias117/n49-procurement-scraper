@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 ## Current Position
 
-Phase: 4 of 5 (Web Application) — IN PROGRESS
-Plan: 2 of 4 complete
-Status: Plans 4-02 and 4-04 complete — Search page + Health page + Docker (Wave 2)
-Last activity: 2026-02-24 — Wave 2 complete (4-02 search page + 4-04 health/Docker)
+Phase: 4 of 5 (Web Application) — COMPLETE
+Plan: 4 of 4 complete
+Status: All Phase 4 plans complete — Web Application ready
+Last activity: 2026-02-24 — 4-03 listing detail + new badges + freshness complete
 
-Progress: [#####.....] 50% (2/4 plans)
+Progress: [##########] 100% (4/4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: ~5.5 min
-- Total execution time: ~64 min
+- Total plans completed: 12
+- Average duration: ~5.6 min
+- Total execution time: ~67 min
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [#####.....] 50% (2/4 plans)
 | 1 | 1/1 | ~15min | ~15min |
 | 2 | 4/4 | ~20min | ~5min |
 | 3 | 4/4 | ~18min | ~4.5min |
-| 4 | 2/4 | ~11min | ~3.7min |
+| 4 | 4/4 | ~14min | ~3.5min |
 
 **Recent Trend:**
-- Last 5 plans: 3-03 (complete), 3-04 (complete), 4-01 (complete), 4-02 (complete), 4-04 (complete)
+- Last 5 plans: 3-04 (complete), 4-01 (complete), 4-02 (complete), 4-04 (complete), 4-03 (complete)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -95,6 +95,10 @@ Recent decisions affecting current work:
 - [Phase 4]: Health page purely informational -- no action buttons
 - [Phase 4]: Multi-stage Docker build copies standalone + static + public to runner
 - [Phase 4]: Added level/province to portal_health API query for table columns
+- [Phase 4]: Sheet slide-out from right with sm:max-w-[600px] for listing detail -- results list stays visible behind overlay
+- [Phase 4]: Read-before-update pattern for last_visited_at: GET then PUT, previous value used for New badge comparison
+- [Phase 4]: SessionProvider at dashboard layout level wraps all dashboard pages for useSession access
+- [Phase 4]: Nav accepts children prop for extensible content like freshness indicator
 
 ### Pending Todos
 
@@ -109,5 +113,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed Wave 2 (4-02 + 4-04)
-Resume file: .planning/phases/4/4-03-PLAN.md (Wave 3 — final plan)
+Stopped at: Completed 4-03 — Phase 4 Web Application complete (all 4 plans)
+Resume file: Phase 5 planning (Scheduling and Hardening)

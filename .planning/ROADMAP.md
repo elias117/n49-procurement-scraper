@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Infrastructure** - Provision EC2, Docker Compose scaffold, PostgreSQL schema, Nginx/TLS — the foundation everything else builds on
 - [x] **Phase 2: Scraper Pipeline** - Browser-use + instructor extraction pipeline that populates listings across all 63 portals
 - [x] **Phase 3: Search Layer** - Hybrid keyword + semantic search API with full filter suite and Reciprocal Rank Fusion ranking
-- [ ] **Phase 4: Web Application** - Next.js dashboard with auth, search UI, listing detail, and scraper health page
+- [x] **Phase 4: Web Application** - Next.js dashboard with auth, search UI, listing detail, and scraper health page
 - [ ] **Phase 5: Scheduling and Hardening** - Nightly cron automation, CloudWatch alerting, per-portal yield monitoring, production Docker hardening
 
 ## Phase Details
@@ -81,7 +81,7 @@ Plans:
 Plans:
 - [x] 4-01-PLAN.md — API extensions (listing detail, health, user auth, last-visit), users DB migration, Next.js scaffold with Auth.js, login page, dashboard shell
 - [x] 4-02-PLAN.md — Search page with nuqs URL state, debounced search bar, sidebar filters, decision-dense result cards, pagination, sort controls
-- [ ] 4-03-PLAN.md — Listing detail Sheet slide-out (documents, contacts, source link), "New" badge logic, data freshness indicator
+- [x] 4-03-PLAN.md — Listing detail Sheet slide-out (documents, contacts, source link), "New" badge logic, data freshness indicator
 - [x] 4-04-PLAN.md — Scraper health page with portal table, staleness indicators, Docker Compose integration
 
 ### Phase 5: Scheduling and Hardening
@@ -105,5 +105,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Infrastructure | 1/1 | Complete | 2026-02-24 |
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
 | 3. Search Layer | 4/4 | Complete | 2026-02-24 |
-| 4. Web Application | 2/4 | In progress | - |
+| 4. Web Application | 4/4 | Complete | 2026-02-24 |
 | 5. Scheduling and Hardening | 0/TBD | Not started | - |
