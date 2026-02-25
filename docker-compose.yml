@@ -44,9 +44,14 @@ services:
     build: ./web
     restart: unless-stopped
     env_file: .env
+    environment:
+      - API_INTERNAL_URL=http://api:8000
+      - NEXTAUTH_URL=https://procurement.eliastools.com
     depends_on:
       db:
         condition: service_healthy
+      api:
+        condition: service_started
     expose:
       - "3000"
     networks:
