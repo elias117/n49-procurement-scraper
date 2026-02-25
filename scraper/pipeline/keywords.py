@@ -8,6 +8,7 @@ by the purge function for database cleanup.
 
 import csv
 import logging
+import random
 from pathlib import Path
 from typing import Optional
 
@@ -49,6 +50,73 @@ def load_keywords(csv_path: Path = KEYWORDS_CSV_PATH) -> list[str]:
 
     logger.info("Loaded %d keywords from %s", len(keywords), csv_path.name)
     return keywords
+
+
+def load_keywords_by_category(
+    csv_path: Path = KEYWORDS_CSV_PATH,
+) -> dict[str, dict[str, list[str]]]:
+    """
+    Load keywords from CSV grouped by Category then Language.
+
+    Returns structure like:
+        {"Core Language and Translation": {"EN": ["translation", ...], "FR": [...]}, ...}
+
+    Validates file exists, required columns present, and at least one keyword.
+    Raises SystemExit if CSV is missing, malformed, or empty.
+    """
+    if not csv_path.exists():
+        logger.error("Keywords CSV not found: %s", csv_path)
+        raise SystemExit(f"Keywords CSV not found: {csv_path}")
+
+    with open(csv_path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+
+        if reader.fieldnames is None or not REQUIRED_COLUMNS.issubset(
+            set(reader.fieldnames)
+        ):
+            missing = REQUIRED_COLUMNS - set(reader.fieldnames or [])
+            logger.error("Keywords CSV missing columns: %s", missing)
+            raise SystemExit(f"Keywords CSV missing required columns: {missing}")
+
+        result: dict[str, dict[str, list[str]]] = {}
+        total = 0
+        for row in reader:
+            keyword = row.get("Keyword", "").strip()
+            if not keyword:
+                continue
+            category = row.get("Category", "").strip()
+            language = row.get("Language", "").strip()
+            if not category or not language:
+                continue
+            result.setdefault(category, {}).setdefault(language, []).append(
+                keyword.lower()
+            )
+            total += 1
+
+    if total == 0:
+        logger.error("Keywords CSV loaded but contains no keywords")
+        raise SystemExit("Keywords CSV contains no keywords")
+
+    logger.info(
+        "Loaded %d keywords across %d categories", total, len(result)
+    )
+    return result
+
+
+def select_keyword_batch(
+    category_keywords: dict[str, list[str]], per_language: int = 5
+) -> list[str]:
+    """
+    Select a random batch of keywords from one category's language dict.
+
+    For each language key ("EN", "FR"), selects min(per_language, available)
+    random keywords. Returns a flat combined list.
+    """
+    batch: list[str] = []
+    for lang_keywords in category_keywords.values():
+        count = min(per_language, len(lang_keywords))
+        batch.extend(random.sample(lang_keywords, count))
+    return batch
 
 
 def matches_keywords(title: Optional[str], description: Optional[str], keywords: list) -> bool:

@@ -15,6 +15,8 @@ import pytest
 from scraper.models import ListingRecord
 from scraper.pipeline.keywords import (
     load_keywords,
+    load_keywords_by_category,
+    select_keyword_batch,
     matches_keywords,
     filter_listings,
     deduplicate_listings,
@@ -300,3 +302,106 @@ class TestPurge:
             if "DELETE" in str(c)
         ]
         assert len(delete_calls) == 3
+
+
+# ---------------------------------------------------------------------------
+# TestLoadKeywordsByCategory
+# ---------------------------------------------------------------------------
+
+
+class TestLoadKeywordsByCategory:
+    def test_loads_from_real_csv(self):
+        result = load_keywords_by_category(REAL_CSV)
+        assert isinstance(result, dict)
+        assert len(result) >= 5
+
+    def test_structure_is_category_then_language(self):
+        result = load_keywords_by_category(REAL_CSV)
+        for category, lang_dict in result.items():
+            assert isinstance(lang_dict, dict)
+            for lang, keywords in lang_dict.items():
+                assert lang in ("EN", "FR")
+                assert isinstance(keywords, list)
+                assert all(isinstance(k, str) for k in keywords)
+
+    def test_keywords_are_lowercased(self):
+        result = load_keywords_by_category(REAL_CSV)
+        for lang_dict in result.values():
+            for keywords in lang_dict.values():
+                for kw in keywords:
+                    assert kw == kw.lower(), f"Keyword not lowercased: {kw}"
+
+    def test_category_counts_match(self):
+        result = load_keywords_by_category(REAL_CSV)
+        core = result["Core Language and Translation"]
+        assert len(core["EN"]) >= 15
+        assert len(core["FR"]) >= 14
+
+    def test_fails_on_missing_file(self, tmp_path):
+        with pytest.raises(SystemExit):
+            load_keywords_by_category(tmp_path / "nonexistent.csv")
+
+    def test_fails_on_empty_keywords(self, tmp_path):
+        csv_path = _write_csv(tmp_path)
+        with pytest.raises(SystemExit):
+            load_keywords_by_category(csv_path)
+
+
+# ---------------------------------------------------------------------------
+# TestSelectKeywordBatch
+# ---------------------------------------------------------------------------
+
+
+class TestSelectKeywordBatch:
+    def test_selects_up_to_per_language(self):
+        category_kw = {
+            "EN": [f"en-kw-{i}" for i in range(10)],
+            "FR": [f"fr-kw-{i}" for i in range(10)],
+        }
+        import random as _random
+        _random.seed(42)
+        result = select_keyword_batch(category_kw, per_language=5)
+        assert len(result) == 10  # 5 EN + 5 FR
+
+    def test_fewer_than_limit_uses_all(self):
+        category_kw = {
+            "EN": [f"en-kw-{i}" for i in range(10)],
+            "FR": [f"fr-kw-{i}" for i in range(3)],
+        }
+        import random as _random
+        _random.seed(42)
+        result = select_keyword_batch(category_kw, per_language=5)
+        assert len(result) == 8  # 5 EN + 3 FR
+
+    def test_empty_language_skipped(self):
+        category_kw = {
+            "EN": [f"en-kw-{i}" for i in range(10)],
+        }
+        import random as _random
+        _random.seed(42)
+        result = select_keyword_batch(category_kw, per_language=5)
+        assert len(result) == 5  # Only EN
+
+    def test_randomness(self):
+        category_kw = {
+            "EN": [f"en-kw-{i}" for i in range(50)],
+            "FR": [f"fr-kw-{i}" for i in range(50)],
+        }
+        import random as _random
+        _random.seed(1)
+        result1 = select_keyword_batch(category_kw, per_language=5)
+        _random.seed(2)
+        result2 = select_keyword_batch(category_kw, per_language=5)
+        # With different seeds and large pools, results should differ
+        assert result1 != result2
+
+    def test_returns_flat_list(self):
+        category_kw = {
+            "EN": ["translation", "interpretation"],
+            "FR": ["traduction", "interpr\u00e9tation"],
+        }
+        import random as _random
+        _random.seed(42)
+        result = select_keyword_batch(category_kw, per_language=5)
+        assert isinstance(result, list)
+        assert all(isinstance(item, str) for item in result)
