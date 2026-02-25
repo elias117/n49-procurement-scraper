@@ -52,6 +52,9 @@ BROWSER_WAIT_BETWEEN_ACTIONS: float = float(
     os.environ.get("BROWSER_WAIT_BETWEEN_ACTIONS", "1.0")
 )
 BROWSER_MAX_STEPS: int = int(os.environ.get("BROWSER_MAX_STEPS", "10"))
+BROWSER_SEARCH_MAX_STEPS: int = int(
+    os.environ.get("BROWSER_SEARCH_MAX_STEPS", "50")
+)
 
 # ---------------------------------------------------------------------------
 # Portal management
