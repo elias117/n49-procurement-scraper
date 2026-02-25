@@ -57,6 +57,8 @@ async def browser_scrape(
     try:
         # Create browser with standard wait times
         # headless=False is REQUIRED -- POC confirmed headless=True gets 403-blocked
+        # keep_alive=True prevents browser session reset after agent.run()
+        # so we can access the page HTML afterward
         browser = Browser(
             browser_profile=BrowserProfile(
                 headless=config.BROWSER_HEADLESS,
@@ -65,7 +67,8 @@ async def browser_scrape(
                 # Disable uBlock Origin and other default extensions --
                 # they block the AJAX requests that populate tender tables
                 enable_default_extensions=False,
-            )
+            ),
+            keep_alive=True,
         )
 
         # Create navigation agent with broad prompt for diverse portals
@@ -87,20 +90,8 @@ async def browser_scrape(
         # Run the navigation agent
         history = await agent.run(max_steps=config.BROWSER_MAX_STEPS)
 
-        # Get page HTML from the browser's current page
-        page = None
-        browser_context = None
-        try:
-            browser_context = await browser.new_context()
-            page = await browser_context.get_current_page()
-        except (AttributeError, TypeError):
-            # Fallback for different browser-use versions
-            if hasattr(browser, "current_page"):
-                page = browser.current_page
-            elif hasattr(browser, "context") and browser.context:
-                pages = browser.context.pages
-                if pages:
-                    page = pages[-1]
+        # Get page HTML -- browser is still alive due to keep_alive=True
+        page = await browser.get_current_page()
 
         if page is None:
             logger.error(
@@ -113,10 +104,6 @@ async def browser_scrape(
 
         # Extract structured listings from the HTML
         listings = extract_listings_from_html(html_content, portal.name)
-
-        # Tag each listing with the source portal
-        for listing in listings:
-            listing.source_portal = portal.id
 
         steps_used = history.number_of_steps() if history else 0
         logger.info(
@@ -141,7 +128,7 @@ async def browser_scrape(
     finally:
         if browser is not None:
             try:
-                await browser.close()
+                await browser.kill()
             except Exception:
                 logger.warning(
                     "Failed to close browser for portal '%s'",

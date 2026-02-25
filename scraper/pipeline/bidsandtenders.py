@@ -4,8 +4,8 @@ BidsAndTenders platform scraper.
 Handles ~20 procurement portals that share the BidsAndTenders platform.
 All share an identical structure with the pattern: {base_url}/Module/Tenders/en.
 
-Uses browser-use Agent for navigation (headless=False to avoid 403 blocks)
-and delegates HTML extraction to the extraction module.
+Uses Playwright directly (not browser-use Agent) since the URL pattern is
+known and no AI navigation is needed. headless=False under Xvfb avoids 403s.
 """
 
 import logging
@@ -25,8 +25,12 @@ async def bidsandtenders_scrape(
     Scrape a BidsAndTenders portal for procurement listings.
 
     All BidsAndTenders portals share the same structure. The tender listing
-    page is always at {base_url}/Module/Tenders/en. Navigation waits 3s
-    for AJAX content to load (pitfall: table loads after initial page render).
+    page is always at {base_url}/Module/Tenders/en.
+
+    Uses Playwright directly instead of browser-use Agent because:
+    - URL pattern is known (no AI navigation needed)
+    - Avoids browser-use session lifecycle issues (session resets on agent done)
+    - Simpler, faster, and no LLM API cost for navigation
 
     Args:
         portal: The portal record with URL and metadata.
@@ -35,15 +39,12 @@ async def bidsandtenders_scrape(
         List of ProcurementListing objects extracted from the page.
         Returns empty list on any failure (error isolation).
     """
-    # Lazy import: browser-use requires Python 3.11+ and Playwright.
-    # These are available in the Docker runtime but may not be in dev/test.
     try:
-        from browser_use import Agent, Browser, BrowserProfile, ChatOpenAI
+        from playwright.async_api import async_playwright
     except ImportError:
         logger.error(
-            "browser-use not installed. "
-            "BidsAndTenders scraping requires Python 3.11+ with "
-            "browser-use package."
+            "playwright not installed. "
+            "BidsAndTenders scraping requires playwright package."
         )
         return []
 
@@ -60,75 +61,40 @@ async def bidsandtenders_scrape(
 
     browser = None
     try:
-        # Create browser with extended AJAX wait time
+        p = await async_playwright().start()
+
         # headless=False is REQUIRED -- POC confirmed headless=True gets 403-blocked
-        browser = Browser(
-            browser_profile=BrowserProfile(
-                headless=config.BROWSER_HEADLESS,
-                minimum_wait_page_load_time=3.0,
-                wait_between_actions=config.BROWSER_WAIT_BETWEEN_ACTIONS,
-                # Disable uBlock Origin and other default extensions --
-                # they block the AJAX requests that populate tender tables
-                enable_default_extensions=False,
-            )
-        )
-
-        # Create navigation agent
-        # browser-use 0.11 requires its own ChatOpenAI wrapper (not langchain's)
-        agent = Agent(
-            task=(
-                f"Navigate to {listing_url}. "
-                f"Wait for the tender listing table to load. "
-                f"The table loads via AJAX after the page renders. "
-                f"Do not click on individual tenders. "
-                f"Do not navigate away from this page."
+        # Runs under Xvfb in Docker for virtual display
+        browser = await p.chromium.launch(headless=config.BROWSER_HEADLESS)
+        context = await browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
             ),
-            llm=ChatOpenAI(model=config.OPENAI_EXTRACTION_MODEL),
-            browser=browser,
-            use_vision=False,
         )
+        page = await context.new_page()
 
-        # Run the navigation agent
-        history = await agent.run(max_steps=config.BROWSER_MAX_STEPS)
+        # Navigate and wait for network to settle (AJAX table load)
+        await page.goto(listing_url, wait_until="networkidle", timeout=30000)
 
-        # Get page HTML from the browser's current page
-        page = None
-        browser_context = None
-        try:
-            browser_context = await browser.new_context()
-            page = await browser_context.get_current_page()
-        except (AttributeError, TypeError):
-            # Fallback for different browser-use versions
-            if hasattr(browser, "current_page"):
-                page = browser.current_page
-            elif hasattr(browser, "context") and browser.context:
-                pages = browser.context.pages
-                if pages:
-                    page = pages[-1]
-
-        if page is None:
-            logger.error(
-                "Could not access browser page for portal '%s'",
-                portal.name,
-            )
-            return []
+        # Extra wait for AJAX content that loads after networkidle
+        await page.wait_for_timeout(5000)
 
         html_content = await page.content()
+
+        logger.info(
+            "Page loaded for '%s', HTML length: %d",
+            portal.name,
+            len(html_content),
+        )
 
         # Extract structured listings from the HTML
         listings = extract_listings_from_html(html_content, portal.name)
 
-        # Tag each listing with the source portal
-        for listing in listings:
-            listing.source_portal = portal.id
-
-        steps_used = history.number_of_steps() if history else 0
         logger.info(
-            "BidsAndTenders scrape complete for '%s': "
-            "%d listings found, %d agent steps used",
+            "BidsAndTenders scrape complete for '%s': %d listings found",
             portal.name,
             len(listings),
-            steps_used,
         )
 
         return listings
@@ -150,3 +116,7 @@ async def bidsandtenders_scrape(
                     "Failed to close browser for portal '%s'",
                     portal.name,
                 )
+        try:
+            await p.stop()
+        except Exception:
+            pass
