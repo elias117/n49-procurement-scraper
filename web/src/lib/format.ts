@@ -6,6 +6,10 @@ import { formatDistanceToNow } from "date-fns";
 /**
  * Format a date string or Date to a human-readable format.
  * Returns "Not specified" for null/undefined values.
+ *
+ * Uses UTC timezone to prevent off-by-one day display: procurement dates
+ * are date-only values stored as midnight UTC, so local timezone conversion
+ * would shift them back a day for users west of UTC.
  */
 export function formatDate(date: string | Date | null | undefined): string {
   if (!date) return "Not specified";
@@ -15,6 +19,7 @@ export function formatDate(date: string | Date | null | undefined): string {
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   });
 }
 
