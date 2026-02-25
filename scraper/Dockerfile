@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r scraper/requirements.txt
 RUN python -m playwright install chromium
 
 COPY scraper/ ./scraper/
+COPY keywords_library.csv ./keywords_library.csv
 
 # Run scraper with Xvfb virtual framebuffer
 # Chromium runs in non-headless mode inside the virtual display

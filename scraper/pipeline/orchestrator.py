@@ -19,6 +19,7 @@ from scraper.db import (
     get_portal_by_name,
     upsert_listings,
 )
+from scraper.pipeline.keywords import load_keywords, filter_listings, deduplicate_listings
 from scraper.models import PortalRecord, ProcurementListing, to_listing_record
 from scraper.pipeline.audit import start_run, complete_run, fail_run
 from scraper.pipeline.canadabuys import canadabuys_ingest
@@ -68,7 +69,7 @@ async def scrape_portal(portal: PortalRecord) -> list:
 
 
 async def process_portal(
-    conn, portal: PortalRecord, skip_embeddings: bool = False
+    conn, portal: PortalRecord, keywords=None, skip_embeddings: bool = False
 ) -> dict:
     """
     Full pipeline for ONE portal: scrape -> validate -> embed -> upsert -> audit.
@@ -104,6 +105,13 @@ async def process_portal(
             else:
                 # Already a ListingRecord (e.g., from canadabuys)
                 listing_records.append(item)
+
+        # Step 2.5: Keyword filtering (if keywords provided)
+        if keywords:
+            listing_records = filter_listings(listing_records, keywords)
+
+        # Step 2.6: Deduplication (always runs -- safety net for all portals)
+        listing_records = deduplicate_listings(listing_records)
 
         # Step 3: Validate and score (filter out ValueError for missing title)
         validated = []
@@ -163,6 +171,9 @@ async def run_pipeline(
     Raises:
         ValueError: If portal_name is specified but not found.
     """
+    # Load keywords at startup (fail-safe: SystemExit if missing/malformed)
+    keywords = load_keywords()
+
     with db_connection() as conn:
         if portal_name:
             portal = get_portal_by_name(conn, portal_name)
@@ -179,7 +190,7 @@ async def run_pipeline(
             logger.info(
                 "--- Processing portal: %s (%s) ---", portal.name, portal.url
             )
-            stats = await process_portal(conn, portal, skip_embeddings=skip_embeddings)
+            stats = await process_portal(conn, portal, keywords=keywords, skip_embeddings=skip_embeddings)
             results[portal.name] = stats
 
         # Log summary

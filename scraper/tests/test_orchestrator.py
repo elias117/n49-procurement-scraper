@@ -381,11 +381,12 @@ class TestProcessPortal:
 
 
 class TestRunPipeline:
+    @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_enabled_portals")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_processes_all_enabled(
-        self, mock_db_ctx, mock_get_portals, mock_process
+        self, mock_db_ctx, mock_get_portals, mock_process, mock_load_kw
     ):
         """run_pipeline processes all enabled portals."""
         mock_conn = MagicMock()
@@ -415,11 +416,12 @@ class TestRunPipeline:
         assert "Portal1" in result
         assert "Portal2" in result
 
+    @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_portal_by_name")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_single_portal(
-        self, mock_db_ctx, mock_get_portal, mock_process
+        self, mock_db_ctx, mock_get_portal, mock_process, mock_load_kw
     ):
         """run_pipeline with portal_name runs only that portal."""
         mock_conn = MagicMock()
@@ -442,14 +444,17 @@ class TestRunPipeline:
             run_pipeline(portal_name="CanadaBuys")
         )
 
-        mock_process.assert_called_once_with(mock_conn, portal, skip_embeddings=False)
+        mock_process.assert_called_once_with(
+            mock_conn, portal, keywords=["test"], skip_embeddings=False
+        )
         assert len(result) == 1
         assert "CanadaBuys" in result
 
+    @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.get_portal_by_name")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_unknown_portal_raises(
-        self, mock_db_ctx, mock_get_portal
+        self, mock_db_ctx, mock_get_portal, mock_load_kw
     ):
         """run_pipeline raises ValueError for unknown portal name."""
         mock_conn = MagicMock()
@@ -463,11 +468,12 @@ class TestRunPipeline:
                 run_pipeline(portal_name="NonExistent")
             )
 
+    @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_enabled_portals")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_error_isolation(
-        self, mock_db_ctx, mock_get_portals, mock_process
+        self, mock_db_ctx, mock_get_portals, mock_process, mock_load_kw
     ):
         """A failed portal does not prevent other portals from processing."""
         mock_conn = MagicMock()
