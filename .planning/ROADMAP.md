@@ -85,15 +85,17 @@ Plans:
 - [x] 4-04-PLAN.md — Scraper health page with portal table, staleness indicators, Docker Compose integration
 
 ### Phase 5: Scheduling and Hardening
-**Goal**: The scraper runs automatically every night at 2 AM ET, monitoring alerts fire if anything goes wrong, and Docker Compose is hardened for production — the platform operates reliably without manual intervention.
+**Goal**: The scraper runs automatically every night at 2 AM ET, Docker Compose is hardened for production, and old listings are cleaned up — the platform operates reliably without manual intervention.
 **Depends on**: Phase 4
 **Requirements**: INFR-05
 **Success Criteria** (what must be TRUE):
   1. The scraper pipeline triggers automatically at 2 AM ET nightly without manual intervention, and new listings appear in the dashboard the following morning
-  2. A CloudWatch alarm fires if no new listings have appeared in 26+ hours (dead-man alert), and a second alarm fires if EC2 memory exceeds 80%
-  3. A per-portal yield alert fires when a portal that previously returned listings returns 0 listings on a run
-  4. Docker Compose uses pinned image digests, restart: always policies, log rotation, and a separate docker-compose.prod.yml — the stack recovers from EC2 reboots automatically
-**Plans**: TBD
+  2. Docker Compose uses pinned image digests, restart: always policies, log rotation, and a separate docker-compose.prod.yml — the stack recovers from EC2 reboots automatically
+  3. Listings with closing_date older than 1 year are automatically deleted nightly
+**Plans**: 2 plans
+Plans:
+- [x] 5-01-PLAN.md — Production Docker Compose overlay (restart: always, log rotation, digest pinning, scraper sleep-infinity) + EC2 user_data.sh update
+- [ ] 5-02-PLAN.md — Nightly scrape script (flock, xvfb-run, retention cleanup), Docker prune script, crontab installer
 
 ## Progress
 
@@ -106,4 +108,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
 | 3. Search Layer | 4/4 | Complete | 2026-02-24 |
 | 4. Web Application | 4/4 | Complete | 2026-02-24 |
-| 5. Scheduling and Hardening | 0/TBD | Not started | - |
+| 5. Scheduling and Hardening | 1/2 | In progress | - |

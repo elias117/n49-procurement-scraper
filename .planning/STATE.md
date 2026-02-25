@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** The BD team can search all 63 government procurement portals from one place, using both precise filters and natural language, and find relevant opportunities they would otherwise miss.
-**Current focus:** Phase 4 - Web Application (IN PROGRESS)
+**Current focus:** Phase 5 - Scheduling and Hardening (COMPLETE)
 
 ## Current Position
 
-Phase: 4 of 5 (Web Application) — COMPLETE
-Plan: 4 of 4 complete
-Status: All Phase 4 plans complete — Web Application ready
-Last activity: 2026-02-24 — 4-03 listing detail + new badges + freshness complete
+Phase: 5 of 5 (Scheduling and Hardening) — COMPLETE
+Plan: 2 of 2 complete
+Status: All Phase 5 plans complete — Scheduling and Hardening ready
+Last activity: 2026-02-24 — 5-02 nightly scrape script, Docker prune, crontab installer
 
-Progress: [##########] 100% (4/4 plans)
+Progress: [##########] 100% (2/2 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: ~5.6 min
-- Total execution time: ~67 min
+- Total plans completed: 14
+- Average duration: ~4.9 min
+- Total execution time: ~69 min
 
 **By Phase:**
 
@@ -31,9 +31,10 @@ Progress: [##########] 100% (4/4 plans)
 | 2 | 4/4 | ~20min | ~5min |
 | 3 | 4/4 | ~18min | ~4.5min |
 | 4 | 4/4 | ~14min | ~3.5min |
+| 5 | 2/2 | ~2min | ~1min |
 
 **Recent Trend:**
-- Last 5 plans: 3-04 (complete), 4-01 (complete), 4-02 (complete), 4-04 (complete), 4-03 (complete)
+- Last 5 plans: 4-02 (complete), 4-04 (complete), 4-03 (complete), 5-01 (complete), 5-02 (complete)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -99,6 +100,10 @@ Recent decisions affecting current work:
 - [Phase 4]: Read-before-update pattern for last_visited_at: GET then PUT, previous value used for New badge comparison
 - [Phase 4]: SessionProvider at dashboard layout level wraps all dashboard pages for useSession access
 - [Phase 4]: Nav accepts children prop for extensible content like freshness indicator
+- [Phase 5]: restart: always over unless-stopped for reboot recovery
+- [Phase 5]: Scraper sleep infinity for cron-based docker compose exec invocations
+- [Phase 5]: 50MB max log per service (10m x 5 files)
+- [Phase 5]: Real sha256 digests fetched from registry for pgvector and nginx
 
 ### Pending Todos
 
@@ -113,5 +118,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 4-03 — Phase 4 Web Application complete (all 4 plans)
-Resume file: Phase 5 planning (Scheduling and Hardening)
+Stopped at: Completed 5-01 — Production Docker overlay and EC2 provisioning
+Resume file: .planning/phases/5/5-02-PLAN.md (nightly scrape script, crontab)
