@@ -10,10 +10,10 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v1.5 — Keyword-Filtered Scraping
-Phase: 8 (in progress)
-Current Plan: 8-02
-Status: 8-01 complete (3 tasks, 3 commits), 24 browser-scraper tests passing, 166 scraper tests passing
-Last activity: 2026-02-25 — Phase 8 Plan 1 executed (browser-use keyword search logic)
+Phase: 8 (complete)
+Current Plan: 8-02 (done)
+Status: 8-02 complete (4 tasks, 3 commits), 25 orchestrator tests passing, 145 scraper tests passing
+Last activity: 2026-02-25 — Phase 8 Plan 2 executed (orchestrator wiring for browser keyword search)
 
 ## Milestone History
 
@@ -60,8 +60,10 @@ Last activity: 2026-02-25 — Phase 8 Plan 1 executed (browser-use keyword searc
 - _detect_search_used checks action_names() for "input_text" -- definitive signal of search form interaction
 - OR fallback persists across categories (once portal rejects OR, all subsequent use single keywords)
 - BROWSER_SEARCH_MAX_STEPS (default 50) controls global step budget across category searches
+- browser_scrape now receives keywords_by_category, consistent with bidsandtenders_scrape pattern
+- BrowserScrapeResult unpacked identically to BidsAndTendersResult in orchestrator dispatch
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 8-01-PLAN.md — next: execute 8-02-PLAN.md (if exists)
+Stopped at: Completed 8-02-PLAN.md — Phase 8 complete, all browser-use keyword search wired through orchestrator
