@@ -15,6 +15,7 @@ from scraper.models import (
     PortalRecord,
     ProcurementListing,
 )
+from scraper.pipeline.bidsandtenders import BidsAndTendersResult
 from scraper.pipeline.orchestrator import (
     classify_portal,
     scrape_portal,
@@ -139,43 +140,111 @@ class TestScrapePortal:
         new_callable=AsyncMock,
     )
     def test_dispatch_canadabuys(self, mock_ingest, canadabuys_portal):
-        """CanadaBuys dispatches to canadabuys_ingest."""
+        """CanadaBuys dispatches to canadabuys_ingest and returns (listings, False)."""
         mock_ingest.return_value = []
 
-        result = asyncio.get_event_loop().run_until_complete(
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
             scrape_portal(canadabuys_portal)
         )
 
         mock_ingest.assert_called_once_with(canadabuys_portal)
-        assert result == []
+        assert listings == []
+        assert search_used is False
 
     @patch(
         "scraper.pipeline.orchestrator.bidsandtenders_scrape",
         new_callable=AsyncMock,
     )
     def test_dispatch_bidsandtenders(self, mock_scrape, bidsandtenders_portal):
-        """BidsAndTenders dispatches to bidsandtenders_scrape."""
-        mock_scrape.return_value = []
+        """BidsAndTenders dispatches to bidsandtenders_scrape with keywords_by_category."""
+        mock_scrape.return_value = BidsAndTendersResult(listings=[], search_used=False)
 
-        result = asyncio.get_event_loop().run_until_complete(
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
             scrape_portal(bidsandtenders_portal)
         )
 
-        mock_scrape.assert_called_once_with(bidsandtenders_portal)
+        mock_scrape.assert_called_once_with(
+            bidsandtenders_portal, keywords_by_category=None
+        )
+        assert listings == []
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.bidsandtenders_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_bidsandtenders_with_keywords(self, mock_scrape, bidsandtenders_portal):
+        """BidsAndTenders passes keywords_by_category through to scraper."""
+        kw_by_cat = {"Cat1": {"EN": ["test"]}}
+        mock_scrape.return_value = BidsAndTendersResult(listings=[], search_used=True)
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(bidsandtenders_portal, keywords_by_category=kw_by_cat)
+        )
+
+        mock_scrape.assert_called_once_with(
+            bidsandtenders_portal, keywords_by_category=kw_by_cat
+        )
+
+    @patch(
+        "scraper.pipeline.orchestrator.bidsandtenders_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_scrape_portal_returns_search_used_flag(self, mock_scrape, bidsandtenders_portal):
+        """scrape_portal returns search_used=True when BidsAndTenders search was used."""
+        mock_listing = ProcurementListing(
+            title="Test", source_listing_id="BT-001"
+        )
+        mock_scrape.return_value = BidsAndTendersResult(
+            listings=[mock_listing], search_used=True
+        )
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(
+                bidsandtenders_portal,
+                keywords_by_category={"Cat": {"EN": ["test"]}},
+            )
+        )
+
+        assert listings == [mock_listing]
+        assert search_used is True
 
     @patch(
         "scraper.pipeline.orchestrator.browser_scrape",
         new_callable=AsyncMock,
     )
     def test_dispatch_browser(self, mock_scrape, generic_portal):
-        """Generic portal dispatches to browser_scrape."""
+        """Generic portal dispatches to browser_scrape and returns (listings, False)."""
         mock_scrape.return_value = []
 
-        result = asyncio.get_event_loop().run_until_complete(
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
             scrape_portal(generic_portal)
         )
 
         mock_scrape.assert_called_once_with(generic_portal)
+        assert listings == []
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.browser_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_scrape_portal_non_bidsandtenders_returns_search_used_false(
+        self, mock_scrape, generic_portal
+    ):
+        """Non-BidsAndTenders portals always return search_used=False."""
+        mock_listing = ListingRecord(
+            title="Test", source_portal="portal-gen-001",
+            source_listing_id="GEN-001", language="en",
+        )
+        mock_scrape.return_value = [mock_listing]
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(generic_portal)
+        )
+
+        assert listings == [mock_listing]
+        assert search_used is False
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +320,7 @@ class TestProcessPortal:
             source_listing_id="REF-001",
             language="en",
         )
-        mock_scrape.return_value = [test_listing]
+        mock_scrape.return_value = ([test_listing], False)
         mock_validate.return_value = test_listing
         mock_embed.return_value = [test_listing]
         mock_upsert.return_value = {"found": 1, "new": 1, "updated": 0}
@@ -301,7 +370,7 @@ class TestProcessPortal:
             title="Browser Listing",
             source_listing_id="BL-001",
         )
-        mock_scrape.return_value = [proc_listing]
+        mock_scrape.return_value = ([proc_listing], False)
 
         # validate_and_score receives a ListingRecord (converted)
         def validate_side_effect(record):
@@ -356,7 +425,7 @@ class TestProcessPortal:
             source_listing_id="BAD-001",
             language="en",
         )
-        mock_scrape.return_value = [good_listing, bad_listing]
+        mock_scrape.return_value = ([good_listing, bad_listing], False)
 
         def validate_side_effect(record):
             if record.source_listing_id == "BAD-001":
@@ -381,12 +450,13 @@ class TestProcessPortal:
 
 
 class TestRunPipeline:
+    @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_enabled_portals")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_processes_all_enabled(
-        self, mock_db_ctx, mock_get_portals, mock_process, mock_load_kw
+        self, mock_db_ctx, mock_get_portals, mock_process, mock_load_kw, mock_load_kw_cat
     ):
         """run_pipeline processes all enabled portals."""
         mock_conn = MagicMock()
@@ -416,12 +486,13 @@ class TestRunPipeline:
         assert "Portal1" in result
         assert "Portal2" in result
 
+    @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_portal_by_name")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_single_portal(
-        self, mock_db_ctx, mock_get_portal, mock_process, mock_load_kw
+        self, mock_db_ctx, mock_get_portal, mock_process, mock_load_kw, mock_load_kw_cat
     ):
         """run_pipeline with portal_name runs only that portal."""
         mock_conn = MagicMock()
@@ -445,16 +516,19 @@ class TestRunPipeline:
         )
 
         mock_process.assert_called_once_with(
-            mock_conn, portal, keywords=["test"], skip_embeddings=False
+            mock_conn, portal, keywords=["test"],
+            keywords_by_category={"Cat": {"EN": ["test"]}},
+            skip_embeddings=False,
         )
         assert len(result) == 1
         assert "CanadaBuys" in result
 
+    @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.get_portal_by_name")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_unknown_portal_raises(
-        self, mock_db_ctx, mock_get_portal, mock_load_kw
+        self, mock_db_ctx, mock_get_portal, mock_load_kw, mock_load_kw_cat
     ):
         """run_pipeline raises ValueError for unknown portal name."""
         mock_conn = MagicMock()
@@ -468,12 +542,13 @@ class TestRunPipeline:
                 run_pipeline(portal_name="NonExistent")
             )
 
+    @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_enabled_portals")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_error_isolation(
-        self, mock_db_ctx, mock_get_portals, mock_process, mock_load_kw
+        self, mock_db_ctx, mock_get_portals, mock_process, mock_load_kw, mock_load_kw_cat
     ):
         """A failed portal does not prevent other portals from processing."""
         mock_conn = MagicMock()
@@ -513,3 +588,221 @@ class TestRunPipeline:
         assert mock_process.call_count == 2
         assert "error" in result["FailPortal"]
         assert result["GoodPortal"]["found"] == 10
+
+
+# ---------------------------------------------------------------------------
+# search_used filter logic tests
+# ---------------------------------------------------------------------------
+
+
+class TestSearchUsedFilterLogic:
+    """Tests for conditional keyword filtering based on search_used flag."""
+
+    @patch("scraper.pipeline.orchestrator.complete_run")
+    @patch("scraper.pipeline.orchestrator.fail_run")
+    @patch("scraper.pipeline.orchestrator.start_run")
+    @patch("scraper.pipeline.orchestrator.upsert_listings")
+    @patch("scraper.pipeline.orchestrator.generate_embeddings")
+    @patch("scraper.pipeline.orchestrator.validate_and_score")
+    @patch("scraper.pipeline.orchestrator.deduplicate_listings")
+    @patch("scraper.pipeline.orchestrator.filter_listings")
+    @patch(
+        "scraper.pipeline.orchestrator.scrape_portal",
+        new_callable=AsyncMock,
+    )
+    def test_search_used_true_skips_keyword_filter(
+        self,
+        mock_scrape,
+        mock_filter,
+        mock_dedup,
+        mock_validate,
+        mock_embed,
+        mock_upsert,
+        mock_start,
+        mock_fail,
+        mock_complete,
+        mock_conn,
+        bidsandtenders_portal,
+    ):
+        """When search_used=True, keyword filter_listings is NOT called."""
+        mock_start.return_value = "run-id"
+        test_listing = ListingRecord(
+            title="Translation Services",
+            source_portal="portal-bt-001",
+            source_listing_id="BT-001",
+            language="en",
+        )
+        mock_scrape.return_value = ([test_listing], True)
+        mock_dedup.return_value = [test_listing]
+        mock_validate.return_value = test_listing
+        mock_embed.return_value = [test_listing]
+        mock_upsert.return_value = {"found": 1, "new": 1, "updated": 0}
+
+        asyncio.get_event_loop().run_until_complete(
+            process_portal(
+                mock_conn,
+                bidsandtenders_portal,
+                keywords=["translation"],
+                keywords_by_category={"Cat": {"EN": ["translation"]}},
+            )
+        )
+
+        mock_filter.assert_not_called()
+
+    @patch("scraper.pipeline.orchestrator.complete_run")
+    @patch("scraper.pipeline.orchestrator.fail_run")
+    @patch("scraper.pipeline.orchestrator.start_run")
+    @patch("scraper.pipeline.orchestrator.upsert_listings")
+    @patch("scraper.pipeline.orchestrator.generate_embeddings")
+    @patch("scraper.pipeline.orchestrator.validate_and_score")
+    @patch("scraper.pipeline.orchestrator.deduplicate_listings")
+    @patch("scraper.pipeline.orchestrator.filter_listings")
+    @patch(
+        "scraper.pipeline.orchestrator.scrape_portal",
+        new_callable=AsyncMock,
+    )
+    def test_search_used_false_applies_keyword_filter(
+        self,
+        mock_scrape,
+        mock_filter,
+        mock_dedup,
+        mock_validate,
+        mock_embed,
+        mock_upsert,
+        mock_start,
+        mock_fail,
+        mock_complete,
+        mock_conn,
+        bidsandtenders_portal,
+    ):
+        """When search_used=False (search box not found), filter_listings IS called."""
+        mock_start.return_value = "run-id"
+        test_listing = ListingRecord(
+            title="Translation Services",
+            source_portal="portal-bt-001",
+            source_listing_id="BT-001",
+            language="en",
+        )
+        mock_scrape.return_value = ([test_listing], False)
+        mock_filter.return_value = [test_listing]
+        mock_dedup.return_value = [test_listing]
+        mock_validate.return_value = test_listing
+        mock_embed.return_value = [test_listing]
+        mock_upsert.return_value = {"found": 1, "new": 1, "updated": 0}
+
+        asyncio.get_event_loop().run_until_complete(
+            process_portal(
+                mock_conn,
+                bidsandtenders_portal,
+                keywords=["translation"],
+                keywords_by_category={"Cat": {"EN": ["translation"]}},
+            )
+        )
+
+        mock_filter.assert_called_once()
+
+    @patch("scraper.pipeline.orchestrator.complete_run")
+    @patch("scraper.pipeline.orchestrator.fail_run")
+    @patch("scraper.pipeline.orchestrator.start_run")
+    @patch("scraper.pipeline.orchestrator.upsert_listings")
+    @patch("scraper.pipeline.orchestrator.generate_embeddings")
+    @patch("scraper.pipeline.orchestrator.validate_and_score")
+    @patch("scraper.pipeline.orchestrator.deduplicate_listings")
+    @patch("scraper.pipeline.orchestrator.filter_listings")
+    @patch(
+        "scraper.pipeline.orchestrator.scrape_portal",
+        new_callable=AsyncMock,
+    )
+    def test_non_bidsandtenders_still_filters(
+        self,
+        mock_scrape,
+        mock_filter,
+        mock_dedup,
+        mock_validate,
+        mock_embed,
+        mock_upsert,
+        mock_start,
+        mock_fail,
+        mock_complete,
+        mock_conn,
+        generic_portal,
+    ):
+        """Non-BidsAndTenders portals always apply keyword filtering."""
+        mock_start.return_value = "run-id"
+        test_listing = ListingRecord(
+            title="Translation Services",
+            source_portal="portal-gen-001",
+            source_listing_id="GEN-001",
+            language="en",
+        )
+        mock_scrape.return_value = ([test_listing], False)
+        mock_filter.return_value = [test_listing]
+        mock_dedup.return_value = [test_listing]
+        mock_validate.return_value = test_listing
+        mock_embed.return_value = [test_listing]
+        mock_upsert.return_value = {"found": 1, "new": 1, "updated": 0}
+
+        asyncio.get_event_loop().run_until_complete(
+            process_portal(
+                mock_conn,
+                generic_portal,
+                keywords=["translation"],
+            )
+        )
+
+        mock_filter.assert_called_once()
+
+    @patch("scraper.pipeline.orchestrator.complete_run")
+    @patch("scraper.pipeline.orchestrator.fail_run")
+    @patch("scraper.pipeline.orchestrator.start_run")
+    @patch("scraper.pipeline.orchestrator.upsert_listings")
+    @patch("scraper.pipeline.orchestrator.generate_embeddings")
+    @patch("scraper.pipeline.orchestrator.validate_and_score")
+    @patch("scraper.pipeline.orchestrator.deduplicate_listings")
+    @patch(
+        "scraper.pipeline.orchestrator.scrape_portal",
+        new_callable=AsyncMock,
+    )
+    def test_all_portals_still_deduplicate(
+        self,
+        mock_scrape,
+        mock_dedup,
+        mock_validate,
+        mock_embed,
+        mock_upsert,
+        mock_start,
+        mock_fail,
+        mock_complete,
+        mock_conn,
+        bidsandtenders_portal,
+    ):
+        """Deduplication runs for all portal types regardless of search_used."""
+        mock_start.return_value = "run-id"
+        listing1 = ListingRecord(
+            title="Listing A",
+            source_portal="portal-bt-001",
+            source_listing_id="DUP-001",
+            language="en",
+        )
+        listing2 = ListingRecord(
+            title="Listing A (dup)",
+            source_portal="portal-bt-001",
+            source_listing_id="DUP-001",
+            language="en",
+        )
+        mock_scrape.return_value = ([listing1, listing2], True)
+        mock_dedup.return_value = [listing1]
+        mock_validate.return_value = listing1
+        mock_embed.return_value = [listing1]
+        mock_upsert.return_value = {"found": 1, "new": 1, "updated": 0}
+
+        asyncio.get_event_loop().run_until_complete(
+            process_portal(
+                mock_conn,
+                bidsandtenders_portal,
+                keywords=["listing"],
+                keywords_by_category={"Cat": {"EN": ["listing"]}},
+            )
+        )
+
+        mock_dedup.assert_called_once()

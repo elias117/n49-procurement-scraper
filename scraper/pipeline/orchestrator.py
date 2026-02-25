@@ -10,6 +10,8 @@ pipeline. Each portal is wrapped in try/except.
 Sequential processing (not parallel) due to 4GB container memory constraint.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Optional
 
