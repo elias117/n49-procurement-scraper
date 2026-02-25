@@ -31,7 +31,7 @@ Plans:
 **Requirements:** FILT-02, FILT-04
 **Plans:** 2 plans
 Plans:
-- [ ] 7-01-PLAN.md — Keyword-by-category loader, batch selection, BidsAndTenders search logic + tests
+- [x] 7-01-PLAN.md — Keyword-by-category loader, batch selection, BidsAndTenders search logic + tests
 - [ ] 7-02-PLAN.md — Orchestrator wiring: pass category keywords, skip BidsAndTenders post-filter + test updates
 **Success Criteria:**
   1. Playwright types keywords into the BidsAndTenders search box and retrieves filtered results

@@ -10,9 +10,10 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v1.5 — Keyword-Filtered Scraping
-Phase: 6 (complete)
-Status: All 3 plans executed (6-01, 6-02, 6-03), 56 tests passing
-Last activity: 2026-02-25 — Phase 6 executed (3 plans, 3 commits)
+Phase: 7 (in progress)
+Current Plan: 7-02
+Status: 7-01 complete (2 tasks, 2 commits), 63 tests passing
+Last activity: 2026-02-25 — Phase 7 Plan 1 executed (keyword-by-category loader + BidsAndTenders search logic)
 
 ## Milestone History
 
@@ -42,14 +43,19 @@ Last activity: 2026-02-25 — Phase 6 executed (3 plans, 3 commits)
 - CloudWatch monitoring (MNTR-01, MNTR-02, MNTR-03)
 
 ### v1.5 Key Context
-- Keywords CSV: 122 keywords, 6 categories, EN + FR
+- Keywords CSV: 122 keywords, 5 categories, EN + FR
 - Categories: Core Language/Translation, Official Languages/Bilingualism, Multilingual Coverage, Communications/Engagement, Procurement Vehicle Signals
 - CanadaBuys: filter client-side after CSV download (no API switch needed)
 - BidsAndTenders: ~29 portals share identical UI, use Playwright search box
 - Browser-use: ~13 enabled portals, modify agent prompt to search for keywords
 - Purge: DELETE existing listings not matching any keyword
 
+### Decisions
+- Module-level playwright import with try/except for testability
+- Re-find search input after each reset (page reloads may invalidate locators)
+- BidsAndTendersResult NamedTuple signals orchestrator whether post-filter is needed
+
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Phase 6 complete — next: `/gsd:plan-phase 7` or `/gsd:verify-work`
+Stopped at: Completed 7-01-PLAN.md — next: execute 7-02-PLAN.md
