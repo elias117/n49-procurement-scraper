@@ -205,11 +205,14 @@ export function ListingDetailSheet({
                         Classification Codes
                       </p>
                       <div className="flex flex-wrap gap-1.5">
-                        {listing.classification_codes.map((code) => (
-                          <Badge key={code} variant="outline" className="text-xs">
-                            {code}
-                          </Badge>
-                        ))}
+                        {listing.classification_codes.map((code, idx) => {
+                          const label = typeof code === "string" ? code : code.code;
+                          return (
+                            <Badge key={label ?? idx} variant="outline" className="text-xs">
+                              {label}
+                            </Badge>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

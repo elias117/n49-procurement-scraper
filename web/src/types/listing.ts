@@ -16,6 +16,12 @@ export interface Document {
   date?: string;
 }
 
+export interface ClassificationCode {
+  code: string;
+  system?: string;
+  description?: string;
+}
+
 export interface ListingDetail {
   id: string;
   source_portal: string;
@@ -29,7 +35,7 @@ export interface ListingDetail {
   amended_date: string | null;
   province: string | null;
   raw_location: string | null;
-  classification_codes: string[];
+  classification_codes: (ClassificationCode | string)[];
   value_min: number | null;
   value_max: number | null;
   contact_info: ContactInfo | null;
