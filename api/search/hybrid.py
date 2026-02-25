@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple
 import psycopg2.extras
 from api import config
 from api.models.request import SearchRequest
+from api.search.highlights import TS_HEADLINE_OPTIONS, sanitize_snippet
 from api.search.query_builder import build_sort_clause
 
 
@@ -49,7 +50,8 @@ SELECT
     f.classification_codes,
     p.name AS portal_name,
     0.0 AS rrf_score,
-    t.cnt AS total_count
+    t.cnt AS total_count,
+    LEFT(COALESCE(f.description, f.title, ''), 200) AS snippet
 FROM filtered f
 JOIN portals p ON f.source_portal = p.id
 CROSS JOIN total t
@@ -86,7 +88,12 @@ SELECT
     f.classification_codes,
     p.name AS portal_name,
     ks.rank_score AS rrf_score,
-    t.cnt AS total_count
+    t.cnt AS total_count,
+    ts_headline('english',
+        COALESCE(f.description, f.title),
+        websearch_to_tsquery('english', %(query)s),
+        %(ts_headline_options)s
+    ) AS snippet
 FROM keyword_search ks
 JOIN filtered f ON ks.id = f.id
 JOIN portals p ON f.source_portal = p.id
@@ -144,7 +151,12 @@ SELECT
     f.classification_codes,
     p.name AS portal_name,
     r.rrf_score,
-    t.cnt AS total_count
+    t.cnt AS total_count,
+    ts_headline('english',
+        COALESCE(f.description, f.title),
+        websearch_to_tsquery('english', %(query)s),
+        %(ts_headline_options)s
+    ) AS snippet
 FROM ranked r
 JOIN filtered f ON r.id = f.id
 JOIN portals p ON f.source_portal = p.id
@@ -194,6 +206,7 @@ def execute_hybrid_search(
         sql = _build_keyword_only_sql(filter_clause, sort_clause)
         sql_params["query"] = params.q
         sql_params["oversample"] = oversample
+        sql_params["ts_headline_options"] = TS_HEADLINE_OPTIONS
     else:
         # Full hybrid search with RRF
         sql = _build_hybrid_sql(filter_clause, sort_clause)
@@ -201,6 +214,7 @@ def execute_hybrid_search(
         sql_params["query_embedding"] = query_embedding
         sql_params["rrf_k"] = config.RRF_K
         sql_params["oversample"] = oversample
+        sql_params["ts_headline_options"] = TS_HEADLINE_OPTIONS
 
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
@@ -215,7 +229,12 @@ def execute_hybrid_search(
     # Extract total_count from the first row (same across all rows via CROSS JOIN)
     total_count = rows[0].get("total_count", 0)
 
-    # Convert RealDictRow to plain dicts
-    results = [dict(row) for row in rows]
+    # Convert RealDictRow to plain dicts and sanitize snippets
+    results = []
+    for row in rows:
+        d = dict(row)
+        if d.get("snippet"):
+            d["snippet"] = sanitize_snippet(d["snippet"])
+        results.append(d)
 
     return results, total_count

@@ -10,6 +10,7 @@ from api.db import get_connection
 from api.models.request import SearchRequest
 from api.models.response import FacetCounts, ListingResult, SearchResponse
 from api.search.embeddings import embed_query
+from api.search.facets import execute_facet_counts
 from api.search.hybrid import execute_hybrid_search
 from api.search.query_builder import build_filter_clause
 
@@ -77,6 +78,7 @@ def search_listings(
         rows, total_count = execute_hybrid_search(
             conn, params, query_embedding, filter_clause, filter_params
         )
+        facets = execute_facet_counts(conn, filter_clause, filter_params)
     finally:
         conn.close()
 
@@ -89,7 +91,7 @@ def search_listings(
             province=row.get("province"),
             value_min=row.get("value_min"),
             value_max=row.get("value_max"),
-            snippet=row.get("description", "")[:200] if row.get("description") else "",
+            snippet=row.get("snippet", ""),
             posting_date=row.get("posting_date"),
         )
         for row in rows
@@ -105,5 +107,5 @@ def search_listings(
         page=params.page,
         page_size=params.page_size,
         total_pages=total_pages,
-        facets=FacetCounts(),  # Facets added in Plan 3-03
+        facets=facets,
     )
