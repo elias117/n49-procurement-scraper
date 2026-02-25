@@ -83,6 +83,11 @@ def main():
         action="store_true",
         help="Skip embedding generation (useful when OpenAI quota is unavailable)",
     )
+    parser.add_argument(
+        "--purge",
+        action="store_true",
+        help="Purge existing listings that don't match keywords after scraping",
+    )
     args = parser.parse_args()
 
     if args.list_portals:
@@ -99,6 +104,7 @@ def main():
             run_pipeline(
                 portal_name=args.portal,
                 skip_embeddings=args.skip_embeddings,
+                purge=args.purge,
             )
         )
     except KeyboardInterrupt:

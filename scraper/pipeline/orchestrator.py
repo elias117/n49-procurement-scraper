@@ -182,6 +182,7 @@ async def process_portal(
 async def run_pipeline(
     portal_name: Optional[str] = None,
     skip_embeddings: bool = False,
+    purge: bool = False,
 ) -> dict:
     """
     Run the scraper pipeline for all enabled portals (or a single portal).
@@ -191,6 +192,8 @@ async def run_pipeline(
 
     Args:
         portal_name: If provided, run only this portal. Otherwise run all enabled.
+        skip_embeddings: If True, skip embedding generation.
+        purge: If True, delete non-matching listings after scraping.
 
     Returns:
         Dict mapping portal_name -> stats dict.
@@ -227,8 +230,10 @@ async def run_pipeline(
             results[portal.name] = stats
 
         # Purge non-matching listings from database (PURG-01)
-        purged = purge_unmatched_listings(conn, keywords)
-        logger.info("Purged %d non-matching listings from database", purged)
+        # Only runs when explicitly requested via --purge flag.
+        if purge:
+            purged = purge_unmatched_listings(conn, keywords)
+            logger.info("Purged %d non-matching listings from database", purged)
 
         # Log summary
         total_found = sum(r.get("found", 0) for r in results.values())
