@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v1.5 — Keyword-Filtered Scraping
 Phase: 7 (in progress)
-Current Plan: 7-02
-Status: 7-01 complete (2 tasks, 2 commits), 63 tests passing
-Last activity: 2026-02-25 — Phase 7 Plan 1 executed (keyword-by-category loader + BidsAndTenders search logic)
+Current Plan: 7-03
+Status: 7-02 complete (3 tasks, 2 commits), 85 phase-7 tests passing, 160 scraper tests passing
+Last activity: 2026-02-25 — Phase 7 Plan 2 executed (orchestrator wiring + search_used filter logic)
 
 ## Milestone History
 
@@ -54,8 +54,10 @@ Last activity: 2026-02-25 — Phase 7 Plan 1 executed (keyword-by-category loade
 - Module-level playwright import with try/except for testability
 - Re-find search input after each reset (page reloads may invalidate locators)
 - BidsAndTendersResult NamedTuple signals orchestrator whether post-filter is needed
+- search_used flag drives conditional filtering: True=skip filter, False=apply filter (handles search-box-not-found fallback)
+- `from __future__ import annotations` for Python 3.9 compat in orchestrator (matches bidsandtenders.py)
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 7-01-PLAN.md — next: execute 7-02-PLAN.md
+Stopped at: Completed 7-02-PLAN.md — next: execute 7-03-PLAN.md (if exists)

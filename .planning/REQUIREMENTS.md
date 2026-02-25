@@ -15,7 +15,7 @@
 - [ ] **FILT-01**: CanadaBuys CSV listings filtered client-side by keyword match on title and description before upsert
 - [x] **FILT-02**: BidsAndTenders Playwright scraper uses portal search interface to query keywords, using OR-style queries where supported
 - [ ] **FILT-03**: Browser-use agent prompt updated to search for keywords using portal search forms instead of browsing all listings
-- [ ] **FILT-04**: For portals with simple search boxes (no OR support), a curated subset of core translation keywords is used
+- [x] **FILT-04**: For portals with simple search boxes (no OR support), a curated subset of core translation keywords is used
 - [ ] **FILT-05**: Listings from multiple keyword searches within a run are deduplicated by source_listing_id before upsert
 
 ## Data Cleanup (2)

@@ -32,7 +32,7 @@ Plans:
 **Plans:** 2 plans
 Plans:
 - [x] 7-01-PLAN.md — Keyword-by-category loader, batch selection, BidsAndTenders search logic + tests
-- [ ] 7-02-PLAN.md — Orchestrator wiring: pass category keywords, skip BidsAndTenders post-filter + test updates
+- [x] 7-02-PLAN.md — Orchestrator wiring: pass category keywords, skip BidsAndTenders post-filter + test updates
 **Success Criteria:**
   1. Playwright types keywords into the BidsAndTenders search box and retrieves filtered results
   2. OR-style queries used where supported; curated core keywords where not
