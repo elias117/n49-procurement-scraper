@@ -11,7 +11,7 @@ from api.models.request import SearchRequest
 from api.models.response import FacetCounts, ListingResult, SearchResponse
 from api.search.embeddings import embed_query
 from api.search.facets import execute_facet_counts
-from api.search.hybrid import execute_hybrid_search
+from api.search.hybrid import execute_exact_search, execute_hybrid_search
 from api.search.query_builder import build_filter_clause
 
 router = APIRouter(tags=["search"])
@@ -75,9 +75,14 @@ def search_listings(
 
     conn = get_connection()
     try:
-        rows, total_count = execute_hybrid_search(
-            conn, params, query_embedding, filter_clause, filter_params
-        )
+        if params.mode == "exact" and params.q.strip():
+            rows, total_count = execute_exact_search(
+                conn, params, filter_clause, filter_params
+            )
+        else:
+            rows, total_count = execute_hybrid_search(
+                conn, params, query_embedding, filter_clause, filter_params
+            )
         facets = execute_facet_counts(conn, filter_clause, filter_params)
     finally:
         conn.close()

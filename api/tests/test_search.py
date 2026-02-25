@@ -118,7 +118,7 @@ def test_search_exact_mode_skips_embedding(client):
     rows = _make_sample_rows(1)
     with patch("api.routers.search.get_connection") as mock_conn, \
          patch("api.routers.search.embed_query") as mock_embed, \
-         patch("api.routers.search.execute_hybrid_search", _mock_execute_search(rows)):
+         patch("api.routers.search.execute_exact_search", _mock_execute_search(rows)):
         mock_conn.return_value = MagicMock()
         response = client.get("/search?q=tender123&mode=exact")
 

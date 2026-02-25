@@ -167,6 +167,102 @@ OFFSET %(offset)s
 """
 
 
+def _build_exact_match_sql(filter_clause: str) -> str:
+    """Build SQL for exact match mode (ILIKE + phraseto_tsquery)."""
+    return f"""
+WITH filtered AS (
+    SELECT id, title, description, source_portal, closing_date,
+           province, value_min, value_max, posting_date,
+           classification_codes, source_listing_id
+    FROM listings
+    WHERE {filter_clause}
+),
+matched AS (
+    SELECT id,
+           CASE WHEN title ILIKE '%%' || %(query)s || '%%' THEN 0
+                WHEN source_listing_id ILIKE '%%' || %(query)s || '%%' THEN 1
+                ELSE 2
+           END AS match_rank
+    FROM filtered
+    WHERE
+        title ILIKE '%%' || %(query)s || '%%'
+        OR description ILIKE '%%' || %(query)s || '%%'
+        OR source_listing_id ILIKE '%%' || %(query)s || '%%'
+),
+total AS (
+    SELECT COUNT(*) AS cnt FROM matched
+)
+SELECT
+    f.id, f.title, f.description, f.closing_date,
+    f.province, f.value_min, f.value_max, f.posting_date,
+    f.classification_codes,
+    p.name AS portal_name,
+    m.match_rank,
+    ts_headline('english',
+        COALESCE(f.description, f.title),
+        phraseto_tsquery('english', %(query)s),
+        %(ts_headline_options)s
+    ) AS snippet,
+    t.cnt AS total_count
+FROM matched m
+JOIN filtered f ON m.id = f.id
+JOIN portals p ON f.source_portal = p.id
+CROSS JOIN total t
+ORDER BY m.match_rank, f.closing_date DESC NULLS LAST
+LIMIT %(page_size)s OFFSET %(offset)s;
+"""
+
+
+def execute_exact_search(
+    conn,
+    params: SearchRequest,
+    filter_clause: str,
+    filter_params: dict,
+) -> Tuple[List[dict], int]:
+    """Execute an exact match search using ILIKE.
+
+    Args:
+        conn: psycopg2 connection.
+        params: SearchRequest with query, pagination settings.
+        filter_clause: Pre-built SQL WHERE fragment from build_filter_clause.
+        filter_params: Parameter dict from build_filter_clause.
+
+    Returns:
+        Tuple of (list_of_row_dicts, total_count).
+    """
+    offset = _calculate_offset(params.page, params.page_size)
+
+    sql_params = {**filter_params}
+    sql_params["query"] = params.q
+    sql_params["page_size"] = params.page_size
+    sql_params["offset"] = offset
+    sql_params["ts_headline_options"] = TS_HEADLINE_OPTIONS
+
+    sql = _build_exact_match_sql(filter_clause)
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cursor.execute(sql, sql_params)
+        rows = cursor.fetchall()
+    finally:
+        cursor.close()
+
+    if not rows:
+        return [], 0
+
+    total_count = rows[0].get("total_count", 0)
+
+    # Convert RealDictRow to plain dicts and sanitize snippets
+    results = []
+    for row in rows:
+        d = dict(row)
+        if d.get("snippet"):
+            d["snippet"] = sanitize_snippet(d["snippet"])
+        results.append(d)
+
+    return results, total_count
+
+
 def execute_hybrid_search(
     conn,
     params: SearchRequest,
