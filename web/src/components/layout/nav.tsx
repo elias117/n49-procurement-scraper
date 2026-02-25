@@ -11,7 +11,7 @@ const navLinks = [
   { href: "/dashboard/health", label: "Scraper Health", icon: Activity },
 ];
 
-export function Nav() {
+export function Nav({ children }: { children?: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
@@ -46,15 +46,18 @@ export function Nav() {
             })}
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2"
-          onClick={() => signOut({ callbackUrl: "/login" })}
-        >
-          <LogOut className="h-4 w-4" />
-          Sign out
-        </Button>
+        <div className="flex items-center gap-4">
+          {children}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </Button>
+        </div>
       </div>
     </nav>
   );
