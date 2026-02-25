@@ -60,7 +60,12 @@ Plans:
   3. Hybrid search (combined keyword + semantic via Reciprocal Rank Fusion) returns results that satisfy 20 real procurement queries validated with the BD team
   4. All six filter dimensions work correctly in combination: closing date range, region/province, source portal, posting date range, category/commodity code (NAICS/UNSPSC/GSIN), and estimated contract value range
   5. Results can be sorted by posting date, closing date, relevance score, and contract value; default view shows only open/future listings
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [x] 3-01-PLAN.md — API foundation: FastAPI scaffold, DB connection, Pydantic models, Docker/nginx integration, schema migration, test infrastructure
+- [ ] 3-02-PLAN.md — Core search engine: hybrid search (keyword + semantic + RRF), query embedding, filter construction, sort options
+- [ ] 3-03-PLAN.md — Search UX: facet counts, keyword highlights with XSS sanitization, exact match mode, pagination
+- [ ] 3-04-PLAN.md — Integration validation: 20-query benchmark against real data, end-to-end verification
 
 ### Phase 4: Web Application
 **Goal**: The BD team can log in, search all 63 portals from one dashboard, view listing details, and monitor scraper health — the platform is usable for daily work.
@@ -94,6 +99,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 1/1 | Complete | 2026-02-24 |
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
-| 3. Search Layer | 0/TBD | Not started | - |
+| 3. Search Layer | 1/4 | In progress | - |
 | 4. Web Application | 0/TBD | Not started | - |
 | 5. Scheduling and Hardening | 0/TBD | Not started | - |

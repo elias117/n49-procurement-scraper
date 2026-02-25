@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** The BD team can search all 63 government procurement portals from one place, using both precise filters and natural language, and find relevant opportunities they would otherwise miss.
-**Current focus:** Phase 2 - Scraper Pipeline (COMPLETE)
+**Current focus:** Phase 3 - Search Layer (IN PROGRESS)
 
 ## Current Position
 
-Phase: 2 of 5 (Scraper Pipeline) — COMPLETE
-Plan: 4 of 4 complete
-Status: Phase 2 complete — benchmark approved, ready for Phase 3
-Last activity: 2026-02-24 — Live benchmark approved (897 listings, embeddings, upsert idempotency verified)
+Phase: 3 of 5 (Search Layer) — IN PROGRESS
+Plan: 1 of 4 complete
+Status: Plan 3-01 complete — API foundation, schema migration, test infrastructure
+Last activity: 2026-02-24 — Plan 3-01 executed (8 tasks, 8 commits)
 
-Progress: [==========] 100% (11/11 tasks across 4 plans)
+Progress: [##........] 25% (1/4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: ~6 min
-- Total execution time: ~35 min
+- Total execution time: ~39 min
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [==========] 100% (11/11 tasks across 4 plans)
 |-------|-------|-------|----------|
 | 1 | 1/1 | ~15min | ~15min |
 | 2 | 4/4 | ~20min | ~5min |
+| 3 | 1/4 | ~4min | ~4min |
 
 **Recent Trend:**
-- Last 5 plans: 1-01 (complete), 2-01 (complete), 2-02 (complete), 2-03 (complete), 2-04 (complete)
+- Last 5 plans: 2-01 (complete), 2-02 (complete), 2-03 (complete), 2-04 (complete), 3-01 (complete)
 - Trend: accelerating
 
 *Updated after each plan completion*
@@ -69,6 +70,9 @@ Recent decisions affecting current work:
 - [Phase 2]: User-Agent header required for CanadaBuys CSV download (403 without it)
 - [Phase 2]: JSONB columns need ::jsonb cast in upsert CTE input_rows
 - [Phase 2]: execute_values returns rows directly (not via fetchone) when fetch=True
+- [Phase 3]: FastAPI root_path=/api with nginx proxy_pass trailing slash for prefix stripping
+- [Phase 3]: Stored generated tsvector column for index-aligned FTS (avoids expression mismatch)
+- [Phase 3]: Docker build context set to project root for package-qualified imports
 
 ### Pending Todos
 
@@ -83,5 +87,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Phase 2 complete — ready for Phase 3
-Resume file: .planning/ROADMAP.md (Phase 3)
+Stopped at: Completed 3-01-PLAN.md
+Resume file: .planning/phases/3/3-02-PLAN.md
