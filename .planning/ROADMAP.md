@@ -46,7 +46,7 @@ Plans:
 **Plans:** 2 plans
 Plans:
 - [x] 8-01-PLAN.md — Browser-use keyword search: agent prompt, OR fallback, action history detection + tests
-- [ ] 8-02-PLAN.md — Orchestrator wiring: pass keywords to browser_scrape, unpack BrowserScrapeResult + test updates
+- [x] 8-02-PLAN.md — Orchestrator wiring: pass keywords to browser_scrape, unpack BrowserScrapeResult + test updates
 **Success Criteria:**
   1. Agent prompt instructs the AI to use the portal's search form with keywords
   2. Curated keyword subset is used for portals with simple search boxes
