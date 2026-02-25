@@ -104,6 +104,11 @@ Recent decisions affecting current work:
 - [Phase 5]: Scraper sleep infinity for cron-based docker compose exec invocations
 - [Phase 5]: 50MB max log per service (10m x 5 files)
 - [Phase 5]: Real sha256 digests fetched from registry for pgvector and nginx
+- [Phase 5]: flock -n non-blocking lock: skip run if previous still active (no queue, no wait)
+- [Phase 5]: CRON_TZ=America/Toronto over ET for DST-aware IANA timezone handling
+- [Phase 5]: Retention cleanup runs unconditionally after scrape (even if scrape fails)
+- [Phase 5]: docker system prune --filter until=168h protects recently-built images
+- [Phase 5]: install-crontab.sh replaces full crontab (idempotent)
 
 ### Pending Todos
 
@@ -118,5 +123,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 5-01 — Production Docker overlay and EC2 provisioning
-Resume file: .planning/phases/5/5-02-PLAN.md (nightly scrape script, crontab)
+Stopped at: Completed 5-02 — Phase 5 Scheduling and Hardening complete (all 2 plans). ALL 5 PHASES COMPLETE.
+Resume file: Project complete

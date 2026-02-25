@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Scraper Pipeline** - Browser-use + instructor extraction pipeline that populates listings across all 63 portals
 - [x] **Phase 3: Search Layer** - Hybrid keyword + semantic search API with full filter suite and Reciprocal Rank Fusion ranking
 - [x] **Phase 4: Web Application** - Next.js dashboard with auth, search UI, listing detail, and scraper health page
-- [ ] **Phase 5: Scheduling and Hardening** - Nightly cron automation, CloudWatch alerting, per-portal yield monitoring, production Docker hardening
+- [x] **Phase 5: Scheduling and Hardening** - Nightly cron automation, CloudWatch alerting, per-portal yield monitoring, production Docker hardening
 
 ## Phase Details
 
@@ -95,7 +95,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 5-01-PLAN.md — Production Docker Compose overlay (restart: always, log rotation, digest pinning, scraper sleep-infinity) + EC2 user_data.sh update
-- [ ] 5-02-PLAN.md — Nightly scrape script (flock, xvfb-run, retention cleanup), Docker prune script, crontab installer
+- [x] 5-02-PLAN.md — Nightly scrape script (flock, xvfb-run, retention cleanup), Docker prune script, crontab installer
 
 ## Progress
 
@@ -108,4 +108,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Scraper Pipeline | 4/4 | Complete | 2026-02-24 |
 | 3. Search Layer | 4/4 | Complete | 2026-02-24 |
 | 4. Web Application | 4/4 | Complete | 2026-02-24 |
-| 5. Scheduling and Hardening | 1/2 | In progress | - |
+| 5. Scheduling and Hardening | 2/2 | Complete | 2026-02-24 |

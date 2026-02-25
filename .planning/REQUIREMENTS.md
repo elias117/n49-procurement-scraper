@@ -47,7 +47,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **INFR-02**: PostgreSQL 17 with pgvector serves as the single data store for structured data and vector embeddings
 - [x] **INFR-03**: AWS infrastructure provisioned via Terraform in ca-central-1
 - [x] **INFR-04**: Nginx handles TLS termination and reverse proxying to application services
-- [ ] **INFR-05**: Automated nightly scheduling triggers scraper pipeline at 2 AM ET
+- [x] **INFR-05**: Automated nightly scheduling triggers scraper pipeline at 2 AM ET
 
 ## v2 Requirements
 
@@ -120,7 +120,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFR-02 | Phase 1 | Complete (1-01) |
 | INFR-03 | Phase 1 | Complete (1-01) |
 | INFR-04 | Phase 1 | Complete (1-01) |
-| INFR-05 | Phase 5 | In progress (5-01 infra ready, 5-02 crontab pending) |
+| INFR-05 | Phase 5 | Complete (5-01 infra + 5-02 crontab) |
 
 **Coverage:**
 - v1 requirements: 30 total
