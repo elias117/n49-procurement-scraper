@@ -36,7 +36,17 @@ def get_listing(listing_id: str):
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT l.*, p.name AS source_portal_name, p.url AS portal_url
+                SELECT l.id, l.source_portal, l.source_listing_id, l.title,
+                       l.description, l.status, l.language,
+                       l.posting_date, l.closing_date, l.amended_date,
+                       l.province, l.raw_location,
+                       COALESCE(l.classification_codes, '[]'::jsonb) AS classification_codes,
+                       l.value_min, l.value_max,
+                       l.contact_info,
+                       COALESCE(l.documents, '[]'::jsonb) AS documents,
+                       l.revision, l.source_url,
+                       l.last_scraped_at, l.created_at, l.updated_at,
+                       p.name AS source_portal_name, p.url AS portal_url
                 FROM listings l
                 JOIN portals p ON l.source_portal = p.id
                 WHERE l.id = %s

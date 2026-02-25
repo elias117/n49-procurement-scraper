@@ -199,7 +199,7 @@ export function ListingDetailSheet({
                       {formatCurrency(listing.value_min, listing.value_max)}
                     </span>
                   </div>
-                  {listing.classification_codes.length > 0 && (
+                  {listing.classification_codes && listing.classification_codes.length > 0 && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-1.5">
                         Classification Codes
