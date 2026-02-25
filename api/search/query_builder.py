@@ -29,9 +29,11 @@ def build_filter_clause(params: SearchRequest) -> tuple[str, dict]:
         )
         sql_params["regions"] = params.regions
 
-    # 3. Portal filter
+    # 3. Portal filter (facets return portal names, resolve to IDs via subquery)
     if params.portals:
-        clauses.append("source_portal = ANY(%(portals)s::uuid[])")
+        clauses.append(
+            "source_portal IN (SELECT id FROM portals WHERE name = ANY(%(portals)s))"
+        )
         sql_params["portals"] = params.portals
 
     # 4. Closing date range

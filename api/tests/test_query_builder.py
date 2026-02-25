@@ -32,15 +32,14 @@ def test_region_filter_includes_null():
 
 
 def test_portal_filter():
-    """Portal filter produces uuid array comparison."""
+    """Portal filter resolves portal names to IDs via subquery."""
     params = SearchRequest(
-        portals=["550e8400-e29b-41d4-a716-446655440000",
-                 "6ba7b810-9dad-11d1-80b4-00c04fd430c8"],
+        portals=["CanadaBuys", "BC Bid"],
         include_closed=True,
     )
     clause, sql_params = build_filter_clause(params)
-    assert "source_portal = ANY(%(portals)s::uuid[])" in clause
-    assert len(sql_params["portals"]) == 2
+    assert "source_portal IN (SELECT id FROM portals WHERE name = ANY(%(portals)s))" in clause
+    assert sql_params["portals"] == ["CanadaBuys", "BC Bid"]
 
 
 def test_closing_date_range():
