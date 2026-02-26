@@ -122,14 +122,16 @@ def select_keyword_batch(
 
 def matches_keywords(title: Optional[str], description: Optional[str], keywords: list) -> bool:
     """
-    Check if a listing matches any keyword via case-insensitive word-level matching.
+    Check if a listing matches any keyword via proximity-based word matching.
 
-    For each keyword, splits into individual words and checks that ALL words
-    appear as whole words in the combined title + description text. Uses word
-    boundary extraction to prevent substring false positives (e.g. "de" in
-    "services de traduction" should not match inside "department").
+    For multi-word keywords, all keyword words must appear within a sliding
+    window of (keyword_word_count + 3) consecutive text words. This prevents
+    false positives where keyword words appear far apart in the text (e.g.
+    "language" in boilerplate + "services" in title matching "language services").
 
-    Returns True if any keyword's words all appear in the text.
+    Single-word keywords match if the word appears anywhere in the text.
+
+    Returns True if any keyword matches.
     """
     text = ""
     if title:
@@ -140,12 +142,33 @@ def matches_keywords(title: Optional[str], description: Optional[str], keywords:
     if not text.strip():
         return False
 
-    text_words = set(re.findall(r"\w+", text))
+    text_word_list = re.findall(r"\w+", text)
+    text_word_set = set(text_word_list)
 
     for kw in keywords:
         kw_words = re.findall(r"\w+", kw)
-        if kw_words and all(word in text_words for word in kw_words):
+        if not kw_words:
+            continue
+
+        # Quick check: all keyword words must exist somewhere in text
+        if not all(word in text_word_set for word in kw_words):
+            continue
+
+        # Single-word keyword: presence is sufficient
+        if len(kw_words) == 1:
             return True
+
+        # Multi-word keyword: check proximity via sliding window
+        window_size = len(kw_words) + 3
+        # If text fits in one window, the quick check above is sufficient
+        if len(text_word_list) <= window_size:
+            return True
+        kw_word_set = set(kw_words)
+        for i in range(len(text_word_list) - window_size + 1):
+            window = set(text_word_list[i:i + window_size])
+            if kw_word_set.issubset(window):
+                return True
+
     return False
 
 

@@ -154,6 +154,29 @@ class TestMatchesKeywords:
             keywords,
         ) is False
 
+    def test_proximity_rejects_distant_words(self):
+        """Keyword words scattered across document should NOT match."""
+        # "language" in boilerplate + "services" in title = false positive without proximity
+        assert matches_keywords(
+            "Water Damage Restoration Services",
+            "Some long description. Documents may be submitted in either official language of Canada.",
+            ["language services"],
+        ) is False
+
+    def test_proximity_accepts_nearby_words(self):
+        """Keyword words within a few words of each other SHOULD match."""
+        assert matches_keywords(
+            "Language Training Services for HICC", None,
+            ["language services"],
+        ) is True
+
+    def test_proximity_with_intervening_words(self):
+        """Up to 3 extra words between keyword words should still match."""
+        assert matches_keywords(
+            "Translation and comprehensive editing services", None,
+            ["translation services"],
+        ) is True
+
     def test_french_apostrophe_keyword(self):
         """Keywords with apostrophes like d'interprétation should match correctly."""
         assert matches_keywords(
