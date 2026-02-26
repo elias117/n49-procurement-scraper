@@ -77,8 +77,9 @@ Last activity: 2026-02-26 — QT-007: Enabled 5 MERX portals, scraped MERX feder
 | QT-005 | 2026-02-26 | fcac0d3 | Add --purge-only flag, deploy to EC2, purge 6 false-positive listings |
 | QT-006 | 2026-02-26 | 6f58c4c | Proximity-based keyword matching — purged 156 more false positives (163→7 listings) |
 | QT-007 | 2026-02-26 | 7508f2f, d634eaf | Enable 5 MERX portals + scrape federal (4 listings); fix page.evaluate() for browser-use 0.11+ |
+| QT-009 | 2026-02-26 | (deploy) | Enable all 63 portals in production, sync migration files 006/008 to EC2, verify all containers running |
 
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: QT-007 complete. 5 MERX portals enabled, MERX federal scraped (4 new listings). 4 remaining MERX portals (Calgary, Manitoba, Ottawa, Winnipeg) ready for nightly cron or manual run.
+Stopped at: QT-009 complete. All 63 portals enabled in production (verified 63/63). Migration files synced to EC2. Edmonton Procurement test scrape successful.
