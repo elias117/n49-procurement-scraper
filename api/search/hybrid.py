@@ -199,7 +199,10 @@ SELECT
     p.name AS portal_name,
     m.match_rank,
     ts_headline('english',
-        COALESCE(f.description, f.title),
+        CASE WHEN m.match_rank = 0
+             THEN f.title
+             ELSE COALESCE(f.description, f.title)
+        END,
         phraseto_tsquery('english', %(query)s),
         %(ts_headline_options)s
     ) AS snippet,

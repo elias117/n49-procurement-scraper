@@ -116,9 +116,12 @@ class TestMatchesKeywords:
     def test_case_insensitive(self):
         assert matches_keywords("TRANSLATION SERVICES", None, ["translation services"]) is True
 
-    def test_partial_match(self):
-        # "translation" is a substring of "mistranslation"
-        assert matches_keywords("Fixing a mistranslation issue", None, ["translation"]) is True
+    def test_whole_word_match_rejects_substring(self):
+        # "translation" should NOT match "mistranslation" — different words
+        assert matches_keywords("Fixing a mistranslation issue", None, ["translation"]) is False
+
+    def test_whole_word_match_accepts_exact_word(self):
+        assert matches_keywords("Fixing a translation issue", None, ["translation"]) is True
 
     def test_french_accents_exact(self):
         assert matches_keywords("interprétation simultanée requise", None, ["interprétation simultanée"]) is True
@@ -138,6 +141,25 @@ class TestMatchesKeywords:
 
     def test_no_match(self):
         assert matches_keywords("Office furniture procurement", "Desks and chairs", ["translation services"]) is False
+
+    def test_no_false_positive_on_unrelated_listing(self):
+        """Water Damage Restoration Services should not match any translation keywords."""
+        keywords = [
+            "translation services", "language services", "services de traduction",
+            "oral interpretation", "editing services",
+        ]
+        assert matches_keywords(
+            "Water Damage Restoration Services – Dorchester Penitentiary",
+            "Repair of water damage in building facilities",
+            keywords,
+        ) is False
+
+    def test_french_apostrophe_keyword(self):
+        """Keywords with apostrophes like d'interprétation should match correctly."""
+        assert matches_keywords(
+            "Services d'interprétation simultanée", None,
+            ["services d'interprétation"],
+        ) is True
 
     def test_none_title(self):
         assert matches_keywords(None, "translation services available", ["translation services"]) is True

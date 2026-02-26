@@ -9,6 +9,7 @@ by the purge function for database cleanup.
 import csv
 import logging
 import random
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -124,9 +125,9 @@ def matches_keywords(title: Optional[str], description: Optional[str], keywords:
     Check if a listing matches any keyword via case-insensitive word-level matching.
 
     For each keyword, splits into individual words and checks that ALL words
-    appear somewhere in the combined title + description text. This handles
-    cases where keywords like "translation services" should match text like
-    "translation and editing services" (words present but not contiguous).
+    appear as whole words in the combined title + description text. Uses word
+    boundary extraction to prevent substring false positives (e.g. "de" in
+    "services de traduction" should not match inside "department").
 
     Returns True if any keyword's words all appear in the text.
     """
@@ -139,9 +140,11 @@ def matches_keywords(title: Optional[str], description: Optional[str], keywords:
     if not text.strip():
         return False
 
+    text_words = set(re.findall(r"\w+", text))
+
     for kw in keywords:
-        words = kw.split()
-        if words and all(word in text for word in words):
+        kw_words = re.findall(r"\w+", kw)
+        if kw_words and all(word in text_words for word in kw_words):
             return True
     return False
 
