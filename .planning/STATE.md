@@ -13,7 +13,7 @@ Milestone: v1.5 — Keyword-Filtered Scraping
 Phase: 8 (complete)
 Current Plan: 8-02 (done)
 Status: 8-02 complete (4 tasks, 3 commits), 25 orchestrator tests passing, 145 scraper tests passing
-Last activity: 2026-02-26 — QT-005: Deployed keyword fix to EC2, purged 6 false positives (169→163 listings)
+Last activity: 2026-02-26 — QT-006: Proximity-based keyword matching deployed, 163→7 listings (all 7 verified relevant)
 
 ## Milestone History
 
@@ -62,7 +62,7 @@ Last activity: 2026-02-26 — QT-005: Deployed keyword fix to EC2, purged 6 fals
 - BROWSER_SEARCH_MAX_STEPS (default 50) controls global step budget across category searches
 - browser_scrape now receives keywords_by_category, consistent with bidsandtenders_scrape pattern
 - BrowserScrapeResult unpacked identically to BidsAndTendersResult in orchestrator dispatch
-- matches_keywords() uses word-boundary matching via re.findall(r"\w+") — extracts whole words to prevent substring false positives (e.g. "de" matching inside "department")
+- matches_keywords() uses proximity-based matching — keyword words must appear within a sliding window of (word_count + 3) consecutive words. Prevents boilerplate false positives (e.g. "language" in "official language of Canada" + "services" in unrelated title)
 - Exact search snippet uses CASE on match_rank to highlight title when title matched
 
 ## Quick Tasks Completed
@@ -74,8 +74,9 @@ Last activity: 2026-02-26 — QT-005: Deployed keyword fix to EC2, purged 6 fals
 | QT-003 | 2026-02-26 | 17202d2 | Fix keyword matching — word-level matching instead of exact substring, add editing/proofreading keywords |
 | QT-004 | 2026-02-26 | c32090d | Fix keyword false positives (word-boundary matching) + exact search title snippets |
 | QT-005 | 2026-02-26 | fcac0d3 | Add --purge-only flag, deploy to EC2, purge 6 false-positive listings |
+| QT-006 | 2026-02-26 | 6f58c4c | Proximity-based keyword matching — purged 156 more false positives (163→7 listings) |
 
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Deployed QT-004/QT-005 to EC2. Purged 6 false-positive listings (169→163). Both scraper and API containers rebuilt with fixes. OUTSTANDING: (1) how many portals are enabled, (2) re-enable auto-disabled portals, (3) check scraper logs for why portals returned nothing.
+Stopped at: QT-006 deployed. Proximity matching purged 156 false positives (163→7). All 7 remaining verified relevant. Scraper container rebuilt, nginx restarted.
