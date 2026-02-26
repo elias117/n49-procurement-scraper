@@ -13,7 +13,7 @@ Milestone: v1.5 — Keyword-Filtered Scraping
 Phase: 8 (complete)
 Current Plan: 8-02 (done)
 Status: 8-02 complete (4 tasks, 3 commits), 25 orchestrator tests passing, 145 scraper tests passing
-Last activity: 2026-02-26 — QT-004: Fix keyword false positives + exact search title snippets
+Last activity: 2026-02-26 — QT-005: Deployed keyword fix to EC2, purged 6 false positives (169→163 listings)
 
 ## Milestone History
 
@@ -73,8 +73,9 @@ Last activity: 2026-02-26 — QT-004: Fix keyword false positives + exact search
 | QT-002 | 2026-02-25 | ff451c1 | Fix date display off-by-one — add timeZone: "UTC" to formatDate() |
 | QT-003 | 2026-02-26 | 17202d2 | Fix keyword matching — word-level matching instead of exact substring, add editing/proofreading keywords |
 | QT-004 | 2026-02-26 | c32090d | Fix keyword false positives (word-boundary matching) + exact search title snippets |
+| QT-005 | 2026-02-26 | fcac0d3 | Add --purge-only flag, deploy to EC2, purge 6 false-positive listings |
 
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Fixed keyword matching (QT-003). Word-level matching + new keywords. OUTSTANDING: user needs to check on server — (1) how many portals are enabled, (2) re-enable auto-disabled portals, (3) check scraper logs for why other portals returned nothing and OpenAI shows zero usage.
+Stopped at: Deployed QT-004/QT-005 to EC2. Purged 6 false-positive listings (169→163). Both scraper and API containers rebuilt with fixes. OUTSTANDING: (1) how many portals are enabled, (2) re-enable auto-disabled portals, (3) check scraper logs for why portals returned nothing.
