@@ -13,7 +13,7 @@ Milestone: v1.5 — Keyword-Filtered Scraping
 Phase: 8 (complete)
 Current Plan: 8-02 (done)
 Status: 8-02 complete (4 tasks, 3 commits), 25 orchestrator tests passing, 145 scraper tests passing
-Last activity: 2026-02-25 — Phase 8 Plan 2 executed (orchestrator wiring for browser keyword search)
+Last activity: 2026-02-26 — QT-004: Fix keyword false positives + exact search title snippets
 
 ## Milestone History
 
@@ -43,8 +43,8 @@ Last activity: 2026-02-25 — Phase 8 Plan 2 executed (orchestrator wiring for b
 - CloudWatch monitoring (MNTR-01, MNTR-02, MNTR-03)
 
 ### v1.5 Key Context
-- Keywords CSV: 122 keywords, 5 categories, EN + FR
-- Categories: Core Language/Translation, Official Languages/Bilingualism, Multilingual Coverage, Communications/Engagement, Procurement Vehicle Signals
+- Keywords CSV: 55 keywords, 3 categories, EN + FR
+- Categories: Core Language/Translation, Multilingual Services, Specialized Translation Services
 - CanadaBuys: filter client-side after CSV download (no API switch needed)
 - BidsAndTenders: ~29 portals share identical UI, use Playwright search box
 - Browser-use: ~13 enabled portals, modify agent prompt to search for keywords
@@ -62,6 +62,8 @@ Last activity: 2026-02-25 — Phase 8 Plan 2 executed (orchestrator wiring for b
 - BROWSER_SEARCH_MAX_STEPS (default 50) controls global step budget across category searches
 - browser_scrape now receives keywords_by_category, consistent with bidsandtenders_scrape pattern
 - BrowserScrapeResult unpacked identically to BidsAndTendersResult in orchestrator dispatch
+- matches_keywords() uses word-boundary matching via re.findall(r"\w+") — extracts whole words to prevent substring false positives (e.g. "de" matching inside "department")
+- Exact search snippet uses CASE on match_rank to highlight title when title matched
 
 ## Quick Tasks Completed
 
@@ -69,8 +71,10 @@ Last activity: 2026-02-25 — Phase 8 Plan 2 executed (orchestrator wiring for b
 |------|------|---------|-------------|
 | QT-001 | 2026-02-25 | b11b979 | Fix portal filter 500 error — query builder was casting portal names as UUIDs |
 | QT-002 | 2026-02-25 | ff451c1 | Fix date display off-by-one — add timeZone: "UTC" to formatDate() |
+| QT-003 | 2026-02-26 | 17202d2 | Fix keyword matching — word-level matching instead of exact substring, add editing/proofreading keywords |
+| QT-004 | 2026-02-26 | c32090d | Fix keyword false positives (word-boundary matching) + exact search title snippets |
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Fixed portal filter 500 (QT-001) and date timezone display (QT-002). DB diagnosis confirmed dates are correct — 897 listings, 219 distinct posting dates, 0 with posting==closing. User likely saw many CanadaBuys batch-published listings sharing the same posting date.
+Last session: 2026-02-26
+Stopped at: Fixed keyword matching (QT-003). Word-level matching + new keywords. OUTSTANDING: user needs to check on server — (1) how many portals are enabled, (2) re-enable auto-disabled portals, (3) check scraper logs for why other portals returned nothing and OpenAI shows zero usage.
