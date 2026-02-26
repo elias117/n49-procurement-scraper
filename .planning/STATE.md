@@ -13,7 +13,7 @@ Milestone: v1.5 — Keyword-Filtered Scraping
 Phase: 8 (complete)
 Current Plan: 8-02 (done)
 Status: 8-02 complete (4 tasks, 3 commits), 25 orchestrator tests passing, 145 scraper tests passing
-Last activity: 2026-02-26 — QT-006: Proximity-based keyword matching deployed, 163→7 listings (all 7 verified relevant)
+Last activity: 2026-02-26 — QT-007: Enabled 5 MERX portals, scraped MERX federal (4 new listings), fixed browser-use page.evaluate bug
 
 ## Milestone History
 
@@ -64,6 +64,7 @@ Last activity: 2026-02-26 — QT-006: Proximity-based keyword matching deployed,
 - BrowserScrapeResult unpacked identically to BidsAndTendersResult in orchestrator dispatch
 - matches_keywords() uses proximity-based matching — keyword words must appear within a sliding window of (word_count + 3) consecutive words. Prevents boilerplate false positives (e.g. "language" in "official language of Canada" + "services" in unrelated title)
 - Exact search snippet uses CASE on match_rank to highlight title when title matched
+- page.evaluate("() => document.documentElement.outerHTML") instead of page.content() for browser-use 0.11+ compatibility
 
 ## Quick Tasks Completed
 
@@ -75,8 +76,9 @@ Last activity: 2026-02-26 — QT-006: Proximity-based keyword matching deployed,
 | QT-004 | 2026-02-26 | c32090d | Fix keyword false positives (word-boundary matching) + exact search title snippets |
 | QT-005 | 2026-02-26 | fcac0d3 | Add --purge-only flag, deploy to EC2, purge 6 false-positive listings |
 | QT-006 | 2026-02-26 | 6f58c4c | Proximity-based keyword matching — purged 156 more false positives (163→7 listings) |
+| QT-007 | 2026-02-26 | 7508f2f, d634eaf | Enable 5 MERX portals + scrape federal (4 listings); fix page.evaluate() for browser-use 0.11+ |
 
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: QT-006 deployed. Proximity matching purged 156 false positives (163→7). All 7 remaining verified relevant. Scraper container rebuilt, nginx restarted.
+Stopped at: QT-007 complete. 5 MERX portals enabled, MERX federal scraped (4 new listings). 4 remaining MERX portals (Calgary, Manitoba, Ottawa, Winnipeg) ready for nightly cron or manual run.
