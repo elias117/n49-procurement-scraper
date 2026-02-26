@@ -125,7 +125,7 @@ async def browser_scrape(
                 )
                 return BrowserScrapeResult(listings=[], search_used=False)
 
-            html_content = await page.content()
+            html_content = await page.evaluate("() => document.documentElement.outerHTML")
 
             listings = extract_listings_from_html(html_content, portal.name)
 
@@ -179,7 +179,7 @@ async def browser_scrape(
                 page = await browser.get_current_page()
                 if page is None:
                     return BrowserScrapeResult(listings=[], search_used=False)
-                html_content = await page.content()
+                html_content = await page.evaluate("() => document.documentElement.outerHTML")
                 listings = extract_listings_from_html(html_content, portal.name)
                 return BrowserScrapeResult(listings=listings, search_used=False)
 
@@ -256,7 +256,7 @@ async def browser_scrape(
 
                     page = await browser.get_current_page()
                     if page is not None:
-                        html = await page.content()
+                        html = await page.evaluate("() => document.documentElement.outerHTML")
                         listings = extract_listings_from_html(html, portal.name)
 
                         if or_supported and not listings and search_detected:
@@ -284,7 +284,7 @@ async def browser_scrape(
                                 total_steps += retry_history.number_of_steps() if retry_history else 0
                                 page = await browser.get_current_page()
                                 if page is not None:
-                                    html = await page.content()
+                                    html = await page.evaluate("() => document.documentElement.outerHTML")
                                     listings = extract_listings_from_html(html, portal.name)
 
                         all_listings.extend(listings)
