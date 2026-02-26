@@ -121,9 +121,14 @@ def select_keyword_batch(
 
 def matches_keywords(title: Optional[str], description: Optional[str], keywords: list) -> bool:
     """
-    Check if a listing matches any keyword via case-insensitive substring.
+    Check if a listing matches any keyword via case-insensitive word-level matching.
 
-    Returns True if any keyword is a substring of title or description.
+    For each keyword, splits into individual words and checks that ALL words
+    appear somewhere in the combined title + description text. This handles
+    cases where keywords like "translation services" should match text like
+    "translation and editing services" (words present but not contiguous).
+
+    Returns True if any keyword's words all appear in the text.
     """
     text = ""
     if title:
@@ -134,7 +139,11 @@ def matches_keywords(title: Optional[str], description: Optional[str], keywords:
     if not text.strip():
         return False
 
-    return any(kw in text for kw in keywords)
+    for kw in keywords:
+        words = kw.split()
+        if words and all(word in text for word in words):
+            return True
+    return False
 
 
 def filter_listings(listings: list, keywords: list[str]) -> list:

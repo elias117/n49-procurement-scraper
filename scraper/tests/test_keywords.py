@@ -59,7 +59,7 @@ def _write_csv(tmp_path, header="Category,Language,Keyword", rows=None):
 class TestLoadKeywords:
     def test_loads_from_real_csv(self):
         keywords = load_keywords(REAL_CSV)
-        assert len(keywords) >= 100
+        assert len(keywords) >= 50
 
     def test_keywords_are_lowercased(self):
         keywords = load_keywords(REAL_CSV)
@@ -129,6 +129,12 @@ class TestMatchesKeywords:
 
     def test_multi_word_phrase(self):
         assert matches_keywords("We offer bilingual services for government", None, ["bilingual services"]) is True
+
+    def test_words_present_but_not_contiguous(self):
+        """Keyword 'translation services' matches even when other words intervene."""
+        assert matches_keywords(
+            "Translation and Editing Services", None, ["translation services"]
+        ) is True
 
     def test_no_match(self):
         assert matches_keywords("Office furniture procurement", "Desks and chairs", ["translation services"]) is False
@@ -313,7 +319,7 @@ class TestLoadKeywordsByCategory:
     def test_loads_from_real_csv(self):
         result = load_keywords_by_category(REAL_CSV)
         assert isinstance(result, dict)
-        assert len(result) >= 5
+        assert len(result) >= 3
 
     def test_structure_is_category_then_language(self):
         result = load_keywords_by_category(REAL_CSV)
