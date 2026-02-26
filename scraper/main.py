@@ -66,6 +66,21 @@ def list_portals():
         conn.close()
 
 
+def _run_purge_only():
+    """Run only the purge step — delete non-matching listings without scraping."""
+    from scraper.db import db_connection, purge_unmatched_listings
+    from scraper.pipeline.keywords import load_keywords
+
+    logger.info("=" * 60)
+    logger.info("PURGE-ONLY MODE")
+    logger.info("=" * 60)
+
+    keywords = load_keywords()
+    with db_connection() as conn:
+        purged = purge_unmatched_listings(conn, keywords)
+    logger.info("Purged %d non-matching listings from database", purged)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Procurement scraper pipeline"
@@ -88,10 +103,19 @@ def main():
         action="store_true",
         help="Purge existing listings that don't match keywords after scraping",
     )
+    parser.add_argument(
+        "--purge-only",
+        action="store_true",
+        help="Only purge non-matching listings (skip scraping)",
+    )
     args = parser.parse_args()
 
     if args.list_portals:
         list_portals()
+        return
+
+    if args.purge_only:
+        _run_purge_only()
         return
 
     start = time.time()
