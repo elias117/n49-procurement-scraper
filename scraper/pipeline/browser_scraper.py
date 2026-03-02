@@ -175,7 +175,7 @@ async def _enrich_with_details(
                 )
                 break
 
-            await page.goto(detail_url, timeout=30000)
+            await page.goto(detail_url)
             # Wait for content to load
             await page.wait_for_load_state("networkidle")
 
