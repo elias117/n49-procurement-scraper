@@ -46,17 +46,14 @@ def _detect_search_used(history) -> bool:
 
 def _is_sparse(listing: ProcurementListing) -> bool:
     """
-    Check if a listing is sparse (has only a title but missing key details).
+    Check if a listing is sparse (missing description).
 
-    A listing is considered sparse if it lacks ALL of: description,
-    closing_date, and value_min. These are the fields most commonly found
-    on detail pages but missing from listing/summary pages.
+    A listing is considered sparse if it lacks a description, which is the
+    primary detail field found on detail pages but typically missing from
+    listing/summary pages. Listing pages often provide title and closing_date
+    but rarely descriptions.
     """
-    return (
-        listing.description is None
-        and listing.closing_date is None
-        and listing.value_min is None
-    )
+    return listing.description is None
 
 
 def _resolve_url(source_url: str, portal_url: str) -> str:

@@ -772,15 +772,15 @@ class TestIsSparse:
         listing = ProcurementListing(title="Test", description="Some desc")
         assert _is_sparse(listing) is False
 
-    def test_not_sparse_when_closing_date_present(self):
+    def test_sparse_when_only_closing_date_present(self):
         from scraper.pipeline.browser_scraper import _is_sparse
         listing = ProcurementListing(title="Test", closing_date="2026-03-30")
-        assert _is_sparse(listing) is False
+        assert _is_sparse(listing) is True
 
-    def test_not_sparse_when_value_min_present(self):
+    def test_sparse_when_only_value_min_present(self):
         from scraper.pipeline.browser_scraper import _is_sparse
         listing = ProcurementListing(title="Test", value_min=50000.0)
-        assert _is_sparse(listing) is False
+        assert _is_sparse(listing) is True
 
 
 # ---------------------------------------------------------------------------
