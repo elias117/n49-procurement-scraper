@@ -16,11 +16,11 @@ from __future__ import annotations
 
 import logging
 from typing import NamedTuple
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from scraper import config
 from scraper.models import PortalRecord, ProcurementListing
-from scraper.pipeline.extraction import extract_listings_from_html
+from scraper.pipeline.extraction import extract_listing_detail, extract_listings_from_html
 from scraper.pipeline.keywords import select_keyword_batch, deduplicate_listings
 
 try:
@@ -35,6 +35,150 @@ class BidsAndTendersResult(NamedTuple):
     """Result from a BidsAndTenders scrape with search metadata."""
     listings: list[ProcurementListing]
     search_used: bool  # True if keyword search was performed, False if fell back to full scrape
+
+
+def _is_sparse(listing: ProcurementListing) -> bool:
+    """
+    Check if a listing is sparse (missing description).
+
+    A listing is considered sparse if it lacks a description, which is the
+    primary detail field found on detail pages but typically missing from
+    listing/summary pages. BidsAndTenders listing pages show a table with
+    title and closing date but rarely descriptions.
+    """
+    return listing.description is None
+
+
+def _resolve_url(source_url: str, portal_url: str) -> str:
+    """
+    Resolve a potentially relative URL against the portal base URL.
+
+    Args:
+        source_url: The URL from the listing (may be relative).
+        portal_url: The portal's base URL for resolving relative paths.
+
+    Returns:
+        An absolute URL string.
+    """
+    if source_url.startswith(("http://", "https://")):
+        return source_url
+    return urljoin(portal_url, source_url)
+
+
+def _merge_detail(
+    original: ProcurementListing, detail: ProcurementListing
+) -> ProcurementListing:
+    """
+    Merge detail page data into an original sparse listing.
+
+    For each field, uses the detail page value if the original is None.
+    The original title is always preserved (it came from the listing page).
+
+    Args:
+        original: The sparse listing from the listing page.
+        detail: The full listing extracted from the detail page.
+
+    Returns:
+        A new ProcurementListing with merged fields.
+    """
+    merged_data = {}
+    for field_name in ProcurementListing.model_fields:
+        orig_val = getattr(original, field_name)
+        detail_val = getattr(detail, field_name)
+        # Keep original title always; for other fields, prefer detail if original is None
+        if field_name == "title":
+            merged_data[field_name] = orig_val
+        elif orig_val is None and detail_val is not None:
+            merged_data[field_name] = detail_val
+        else:
+            merged_data[field_name] = orig_val
+    return ProcurementListing(**merged_data)
+
+
+async def _enrich_with_details(
+    listings: list[ProcurementListing],
+    page,
+    portal: PortalRecord,
+) -> list[ProcurementListing]:
+    """
+    Enrich sparse listings by visiting their detail pages using Playwright.
+
+    For each listing that has a source_url and is sparse (missing description),
+    navigates to the detail page, extracts full details, and merges them back
+    into the listing.
+
+    Respects config.BROWSER_DETAIL_MAX_PAGES to limit the number of detail
+    page visits per scrape run.
+
+    Args:
+        listings: List of ProcurementListing objects from the listing page.
+        page: The Playwright page instance.
+        portal: The portal record for URL resolution and naming.
+
+    Returns:
+        Updated list of ProcurementListing objects with enriched details.
+    """
+    sparse_listings = [
+        (i, listing)
+        for i, listing in enumerate(listings)
+        if listing.source_url and _is_sparse(listing)
+    ]
+
+    if not sparse_listings:
+        logger.info(
+            "Portal '%s': no sparse listings with URLs to enrich",
+            portal.name,
+        )
+        return listings
+
+    max_pages = config.BROWSER_DETAIL_MAX_PAGES
+    to_enrich = sparse_listings[:max_pages]
+
+    logger.info(
+        "Portal '%s': enriching %d/%d sparse listings (max %d)",
+        portal.name,
+        len(to_enrich),
+        len(sparse_listings),
+        max_pages,
+    )
+
+    enriched = list(listings)  # shallow copy
+
+    for idx, (orig_index, listing) in enumerate(to_enrich):
+        detail_url = _resolve_url(listing.source_url, portal.url)
+
+        try:
+            await page.goto(detail_url, wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(3000)
+
+            html_content = await page.content()
+
+            detail = extract_listing_detail(html_content, portal.name)
+
+            if detail is not None:
+                enriched[orig_index] = _merge_detail(listing, detail)
+                logger.info(
+                    "Portal '%s': enriched listing '%s' from detail page (%d/%d)",
+                    portal.name,
+                    listing.title,
+                    idx + 1,
+                    len(to_enrich),
+                )
+            else:
+                logger.warning(
+                    "Portal '%s': detail extraction returned None for '%s'",
+                    portal.name,
+                    listing.title,
+                )
+        except Exception:
+            logger.exception(
+                "Portal '%s': failed to enrich listing '%s' from %s",
+                portal.name,
+                listing.title,
+                detail_url,
+            )
+
+    return enriched
 
 
 async def _find_search_input(page):
@@ -185,6 +329,9 @@ async def bidsandtenders_scrape(
 
             listings = extract_listings_from_html(html_content, portal.name)
 
+            # Enrich sparse listings by visiting detail pages
+            listings = await _enrich_with_details(listings, page, portal)
+
             logger.info(
                 "BidsAndTenders scrape complete for '%s': %d listings found (full scrape)",
                 portal.name,
@@ -260,9 +407,12 @@ async def bidsandtenders_scrape(
         # Deduplicate across all categories
         deduplicated = deduplicate_listings(all_listings)
 
+        # Enrich sparse listings by visiting detail pages
+        deduplicated = await _enrich_with_details(deduplicated, page, portal)
+
         logger.info(
             "BidsAndTenders keyword search complete for '%s': "
-            "%d total, %d after dedup",
+            "%d total, %d after dedup, enrichment applied",
             portal.name,
             len(all_listings),
             len(deduplicated),

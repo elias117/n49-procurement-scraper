@@ -17,9 +17,13 @@ import pytest
 from scraper.models import PortalRecord, ProcurementListing
 from scraper.pipeline.bidsandtenders import (
     BidsAndTendersResult,
+    _enrich_with_details,
     _find_search_input,
     _execute_search,
+    _is_sparse,
+    _merge_detail,
     _reset_search,
+    _resolve_url,
     bidsandtenders_scrape,
 )
 
@@ -605,3 +609,334 @@ class TestBidsAndTendersScrapeSignature:
         keywords = _sample_keywords_by_category()
         result = await bidsandtenders_scrape(portal, keywords)
         assert result.search_used is True
+
+
+# ---------------------------------------------------------------------------
+# TestIsSparse
+# ---------------------------------------------------------------------------
+
+
+class TestIsSparse:
+    def test_sparse_when_description_is_none(self):
+        listing = ProcurementListing(title="Test")
+        assert _is_sparse(listing) is True
+
+    def test_not_sparse_when_description_present(self):
+        listing = ProcurementListing(title="Test", description="Details here")
+        assert _is_sparse(listing) is False
+
+    def test_sparse_when_only_closing_date_present(self):
+        """A listing with closing_date but no description is still sparse."""
+        listing = ProcurementListing(title="Test", closing_date="2026-04-01")
+        assert _is_sparse(listing) is True
+
+
+# ---------------------------------------------------------------------------
+# TestResolveUrl
+# ---------------------------------------------------------------------------
+
+
+class TestResolveUrl:
+    def test_absolute_url_returned_unchanged(self):
+        result = _resolve_url(
+            "https://example.bidsandtenders.ca/listing/123",
+            "https://example.bidsandtenders.ca/",
+        )
+        assert result == "https://example.bidsandtenders.ca/listing/123"
+
+    def test_relative_url_resolved(self):
+        result = _resolve_url(
+            "/Module/Tenders/en/Tender/Detail/abc123",
+            "https://example.bidsandtenders.ca/",
+        )
+        assert result == "https://example.bidsandtenders.ca/Module/Tenders/en/Tender/Detail/abc123"
+
+    def test_relative_url_without_leading_slash(self):
+        result = _resolve_url(
+            "Tender/Detail/abc123",
+            "https://example.bidsandtenders.ca/Module/Tenders/en/",
+        )
+        assert "abc123" in result
+
+
+# ---------------------------------------------------------------------------
+# TestMergeDetail
+# ---------------------------------------------------------------------------
+
+
+class TestMergeDetail:
+    def test_merge_fills_none_fields(self):
+        """Detail page data fills in missing fields."""
+        original = ProcurementListing(
+            title="Original Title",
+            source_url="https://example.com/listing/1",
+        )
+        detail = ProcurementListing(
+            title="Detail Title",
+            description="Full description from detail page",
+            closing_date="2026-04-15",
+            value_min=50000.0,
+            contact_name="Jane Doe",
+            contact_email="jane@example.ca",
+        )
+        merged = _merge_detail(original, detail)
+        # Title preserved from original
+        assert merged.title == "Original Title"
+        # Fields filled from detail
+        assert merged.description == "Full description from detail page"
+        assert merged.closing_date == "2026-04-15"
+        assert merged.value_min == 50000.0
+        assert merged.contact_name == "Jane Doe"
+        assert merged.contact_email == "jane@example.ca"
+
+    def test_merge_does_not_overwrite_existing(self):
+        """Original values are preserved even when detail has different values."""
+        original = ProcurementListing(
+            title="Original Title",
+            closing_date="2026-03-01",
+        )
+        detail = ProcurementListing(
+            title="Detail Title",
+            closing_date="2026-04-01",
+            description="Detail desc",
+        )
+        merged = _merge_detail(original, detail)
+        assert merged.title == "Original Title"
+        assert merged.closing_date == "2026-03-01"  # Original preserved
+        assert merged.description == "Detail desc"  # Filled from detail
+
+
+# ---------------------------------------------------------------------------
+# TestEnrichWithDetails
+# ---------------------------------------------------------------------------
+
+
+class TestEnrichWithDetails:
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
+    async def test_enriches_sparse_listings_with_urls(self, mock_extract_detail):
+        """Sparse listings with source_url get enriched from detail pages."""
+        portal = _make_portal()
+        sparse_listing = ProcurementListing(
+            title="Sparse Tender",
+            source_url="https://example.bidsandtenders.ca/Tender/Detail/1",
+            source_listing_id="SPARSE-1",
+        )
+        detail_listing = ProcurementListing(
+            title="Detail Title",
+            description="Full description from detail",
+            closing_date="2026-05-01",
+            value_min=100000.0,
+        )
+        mock_extract_detail.return_value = detail_listing
+
+        page = AsyncMock()
+        page.goto = AsyncMock()
+        page.wait_for_timeout = AsyncMock()
+        page.content = AsyncMock(return_value="<html>detail</html>")
+
+        result = await _enrich_with_details([sparse_listing], page, portal)
+
+        assert len(result) == 1
+        assert result[0].title == "Sparse Tender"  # Original title preserved
+        assert result[0].description == "Full description from detail"
+        assert result[0].closing_date == "2026-05-01"
+        assert result[0].value_min == 100000.0
+        page.goto.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
+    async def test_skips_non_sparse_listings(self, mock_extract_detail):
+        """Listings that already have descriptions are not enriched."""
+        portal = _make_portal()
+        complete_listing = ProcurementListing(
+            title="Complete Tender",
+            description="Already has description",
+            source_url="https://example.com/1",
+            source_listing_id="COMPLETE-1",
+        )
+
+        page = AsyncMock()
+
+        result = await _enrich_with_details([complete_listing], page, portal)
+
+        assert len(result) == 1
+        assert result[0].description == "Already has description"
+        mock_extract_detail.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
+    async def test_skips_sparse_without_url(self, mock_extract_detail):
+        """Sparse listings without source_url are not enriched."""
+        portal = _make_portal()
+        sparse_no_url = ProcurementListing(
+            title="No URL Tender",
+            source_listing_id="NOURL-1",
+        )
+
+        page = AsyncMock()
+
+        result = await _enrich_with_details([sparse_no_url], page, portal)
+
+        assert len(result) == 1
+        assert result[0].description is None  # Still sparse
+        mock_extract_detail.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.bidsandtenders.config")
+    @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
+    async def test_respects_max_pages_config(self, mock_extract_detail, mock_config):
+        """Only enriches up to BROWSER_DETAIL_MAX_PAGES listings."""
+        mock_config.BROWSER_DETAIL_MAX_PAGES = 2
+
+        portal = _make_portal()
+        listings = [
+            ProcurementListing(
+                title=f"Sparse-{i}",
+                source_url=f"https://example.com/{i}",
+                source_listing_id=f"SP-{i}",
+            )
+            for i in range(5)
+        ]
+
+        detail = ProcurementListing(
+            title="Detail", description="Enriched description"
+        )
+        mock_extract_detail.return_value = detail
+
+        page = AsyncMock()
+        page.goto = AsyncMock()
+        page.wait_for_timeout = AsyncMock()
+        page.content = AsyncMock(return_value="<html>detail</html>")
+
+        result = await _enrich_with_details(listings, page, portal)
+
+        assert len(result) == 5
+        # Only first 2 should be enriched
+        assert result[0].description == "Enriched description"
+        assert result[1].description == "Enriched description"
+        assert result[2].description is None  # Not enriched
+        assert result[3].description is None
+        assert result[4].description is None
+        assert page.goto.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
+    async def test_handles_detail_extraction_failure_gracefully(
+        self, mock_extract_detail
+    ):
+        """When detail extraction returns None, listing stays sparse."""
+        portal = _make_portal()
+        sparse_listing = ProcurementListing(
+            title="Sparse",
+            source_url="https://example.com/1",
+            source_listing_id="FAIL-1",
+        )
+        mock_extract_detail.return_value = None  # Extraction failed
+
+        page = AsyncMock()
+        page.goto = AsyncMock()
+        page.wait_for_timeout = AsyncMock()
+        page.content = AsyncMock(return_value="<html>empty</html>")
+
+        result = await _enrich_with_details([sparse_listing], page, portal)
+
+        assert len(result) == 1
+        assert result[0].description is None  # Still sparse
+
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
+    async def test_handles_navigation_error_gracefully(self, mock_extract_detail):
+        """When page.goto throws, listing stays sparse but no crash."""
+        portal = _make_portal()
+        sparse_listing = ProcurementListing(
+            title="Sparse",
+            source_url="https://example.com/1",
+            source_listing_id="NAV-FAIL-1",
+        )
+
+        page = AsyncMock()
+        page.goto = AsyncMock(side_effect=Exception("Navigation timeout"))
+
+        result = await _enrich_with_details([sparse_listing], page, portal)
+
+        assert len(result) == 1
+        assert result[0].description is None  # Still sparse
+        mock_extract_detail.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TestEnrichmentInScrapeFlow (integration: enrichment wired into scrape)
+# ---------------------------------------------------------------------------
+
+
+class TestEnrichmentInScrapeFlow:
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
+    @patch("scraper.pipeline.bidsandtenders.extract_listings_from_html")
+    @patch("scraper.pipeline.bidsandtenders.async_playwright")
+    async def test_full_scrape_path_enriches_sparse_listings(
+        self, mock_pw_func, mock_extract, mock_extract_detail
+    ):
+        """Full scrape (no keywords) enriches sparse listings."""
+        portal = _make_portal()
+
+        sparse_listing = ProcurementListing(
+            title="Sparse Tender",
+            source_url="https://example.bidsandtenders.ca/Tender/Detail/1",
+            source_listing_id="SP-1",
+        )
+        mock_extract.return_value = [sparse_listing]
+
+        detail_listing = ProcurementListing(
+            title="Detail",
+            description="Full detail description",
+            closing_date="2026-05-01",
+        )
+        mock_extract_detail.return_value = detail_listing
+
+        page = _make_mock_page()
+        _setup_playwright_mock(mock_pw_func, page)
+
+        result = await bidsandtenders_scrape(portal, keywords_by_category=None)
+
+        assert len(result.listings) == 1
+        assert result.listings[0].title == "Sparse Tender"
+        assert result.listings[0].description == "Full detail description"
+        mock_extract_detail.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
+    @patch("scraper.pipeline.bidsandtenders.extract_listings_from_html")
+    @patch("scraper.pipeline.bidsandtenders.async_playwright")
+    async def test_keyword_search_path_enriches_sparse_listings(
+        self, mock_pw_func, mock_extract, mock_extract_detail
+    ):
+        """Keyword search path enriches sparse listings after dedup."""
+        portal = _make_portal()
+
+        sparse_listing = ProcurementListing(
+            title="Search Result Tender",
+            source_url="https://example.bidsandtenders.ca/Tender/Detail/2",
+            source_listing_id="SR-1",
+        )
+        mock_extract.return_value = [sparse_listing]
+
+        detail_listing = ProcurementListing(
+            title="Detail",
+            description="Keyword search detail",
+            value_min=75000.0,
+        )
+        mock_extract_detail.return_value = detail_listing
+
+        page = _make_mock_page(searchbox_visible=True)
+        _setup_playwright_mock(mock_pw_func, page)
+
+        keywords = {"Cat1": {"EN": ["test"]}}
+        result = await bidsandtenders_scrape(portal, keywords)
+
+        assert len(result.listings) == 1
+        assert result.listings[0].title == "Search Result Tender"
+        assert result.listings[0].description == "Keyword search detail"
+        assert result.listings[0].value_min == 75000.0
+        mock_extract_detail.assert_called()
