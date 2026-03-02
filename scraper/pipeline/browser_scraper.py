@@ -16,6 +16,7 @@ performed (search_used flag).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import NamedTuple
 
@@ -176,8 +177,9 @@ async def _enrich_with_details(
                 break
 
             await page.goto(detail_url)
-            # Wait for content to load
-            await page.wait_for_load_state("networkidle")
+            # browser-use pages lack wait_for_load_state; brief
+            # pause lets the page content settle before extraction.
+            await asyncio.sleep(3)
 
             html_content = await page.evaluate(
                 "() => document.documentElement.outerHTML"
