@@ -53,7 +53,8 @@ def strip_html(html_content: str) -> str:
     Strip non-content HTML elements and return clean text.
 
     Removes script, style, nav, footer, header, and aside tags along with
-    all HTML attributes. Extracts text content only, collapsing multiple
+    most HTML attributes. Preserves href on <a> tags so the LLM can
+    extract listing URLs. Extracts text content only, collapsing multiple
     blank lines into single newlines.
 
     Achieves 5-10x token reduction compared to raw HTML.
@@ -67,9 +68,24 @@ def strip_html(html_content: str) -> str:
         for tag in soup.find_all(tag_name):
             tag.decompose()
 
-    # Remove all HTML attributes to reduce noise
+    # Remove HTML attributes to reduce noise, but preserve href on <a> tags
+    # so the LLM can extract listing detail URLs.
     for tag in soup.find_all(True):
-        tag.attrs = {}
+        if tag.name == "a" and tag.get("href"):
+            href = tag["href"]
+            tag.attrs = {"href": href}
+        else:
+            tag.attrs = {}
+
+    # Convert <a> tags to inline text format: "link text [url]"
+    # This makes URLs visible to get_text() extraction.
+    for a_tag in soup.find_all("a", href=True):
+        href = a_tag["href"]
+        link_text = a_tag.get_text(strip=True)
+        if href and link_text:
+            a_tag.replace_with(f"{link_text} [{href}]")
+        elif href:
+            a_tag.replace_with(f"[{href}]")
 
     # Extract text with newline separators
     text = soup.get_text(separator="\n", strip=True)

@@ -21,7 +21,7 @@ from typing import NamedTuple
 
 from scraper import config
 from scraper.models import PortalRecord, ProcurementListing
-from scraper.pipeline.extraction import extract_listings_from_html
+from scraper.pipeline.extraction import extract_listing_detail, extract_listings_from_html
 from scraper.pipeline.keywords import select_keyword_batch, deduplicate_listings
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,165 @@ def _detect_search_used(history) -> bool:
         return "input_text" in action_names
     except Exception:
         return False
+
+
+def _is_sparse(listing: ProcurementListing) -> bool:
+    """
+    Check if a listing is sparse (has only a title but missing key details).
+
+    A listing is considered sparse if it lacks ALL of: description,
+    closing_date, and value_min. These are the fields most commonly found
+    on detail pages but missing from listing/summary pages.
+    """
+    return (
+        listing.description is None
+        and listing.closing_date is None
+        and listing.value_min is None
+    )
+
+
+def _resolve_url(source_url: str, portal_url: str) -> str:
+    """
+    Resolve a potentially relative URL against the portal base URL.
+
+    Args:
+        source_url: The URL from the listing (may be relative).
+        portal_url: The portal's base URL for resolving relative paths.
+
+    Returns:
+        An absolute URL string.
+    """
+    if source_url.startswith(("http://", "https://")):
+        return source_url
+    from urllib.parse import urljoin
+    return urljoin(portal_url, source_url)
+
+
+def _merge_detail(
+    original: ProcurementListing, detail: ProcurementListing
+) -> ProcurementListing:
+    """
+    Merge detail page data into an original sparse listing.
+
+    For each field, uses the detail page value if the original is None.
+    The original title is always preserved (it came from the listing page).
+
+    Args:
+        original: The sparse listing from the listing page.
+        detail: The full listing extracted from the detail page.
+
+    Returns:
+        A new ProcurementListing with merged fields.
+    """
+    merged_data = {}
+    for field_name in ProcurementListing.model_fields:
+        orig_val = getattr(original, field_name)
+        detail_val = getattr(detail, field_name)
+        # Keep original title always; for other fields, prefer detail if original is None
+        if field_name == "title":
+            merged_data[field_name] = orig_val
+        elif orig_val is None and detail_val is not None:
+            merged_data[field_name] = detail_val
+        else:
+            merged_data[field_name] = orig_val
+    return ProcurementListing(**merged_data)
+
+
+async def _enrich_with_details(
+    listings: list[ProcurementListing],
+    browser,
+    portal: "PortalRecord",
+) -> list[ProcurementListing]:
+    """
+    Enrich sparse listings by visiting their detail pages.
+
+    For each listing that has a source_url and is sparse (missing description,
+    closing_date, and value_min), navigates to the detail page, extracts full
+    details, and merges them back into the listing.
+
+    Respects config.BROWSER_DETAIL_MAX_PAGES to limit the number of detail
+    page visits per scrape run.
+
+    Args:
+        listings: List of ProcurementListing objects from the listing page.
+        browser: The browser-use Browser instance (kept alive).
+        portal: The portal record for URL resolution and naming.
+
+    Returns:
+        Updated list of ProcurementListing objects with enriched details.
+    """
+    sparse_listings = [
+        (i, listing)
+        for i, listing in enumerate(listings)
+        if listing.source_url and _is_sparse(listing)
+    ]
+
+    if not sparse_listings:
+        logger.info(
+            "Portal '%s': no sparse listings with URLs to enrich",
+            portal.name,
+        )
+        return listings
+
+    max_pages = config.BROWSER_DETAIL_MAX_PAGES
+    to_enrich = sparse_listings[:max_pages]
+
+    logger.info(
+        "Portal '%s': enriching %d/%d sparse listings (max %d)",
+        portal.name,
+        len(to_enrich),
+        len(sparse_listings),
+        max_pages,
+    )
+
+    enriched = list(listings)  # shallow copy
+
+    for idx, (orig_index, listing) in enumerate(to_enrich):
+        detail_url = _resolve_url(listing.source_url, portal.url)
+
+        try:
+            page = await browser.get_current_page()
+            if page is None:
+                logger.warning(
+                    "Portal '%s': lost browser page during enrichment",
+                    portal.name,
+                )
+                break
+
+            await page.goto(detail_url, timeout=30000)
+            # Wait for content to load
+            await page.wait_for_load_state("networkidle")
+
+            html_content = await page.evaluate(
+                "() => document.documentElement.outerHTML"
+            )
+
+            detail = extract_listing_detail(html_content, portal.name)
+
+            if detail is not None:
+                enriched[orig_index] = _merge_detail(listing, detail)
+                logger.info(
+                    "Portal '%s': enriched listing '%s' from detail page (%d/%d)",
+                    portal.name,
+                    listing.title,
+                    idx + 1,
+                    len(to_enrich),
+                )
+            else:
+                logger.warning(
+                    "Portal '%s': detail extraction returned None for '%s'",
+                    portal.name,
+                    listing.title,
+                )
+        except Exception:
+            logger.exception(
+                "Portal '%s': failed to enrich listing '%s' from %s",
+                portal.name,
+                listing.title,
+                detail_url,
+            )
+
+    return enriched
 
 
 async def browser_scrape(
@@ -129,6 +288,9 @@ async def browser_scrape(
 
             listings = extract_listings_from_html(html_content, portal.name)
 
+            # Enrich sparse listings by visiting detail pages
+            listings = await _enrich_with_details(listings, browser, portal)
+
             steps_used = history.number_of_steps() if history else 0
             logger.info(
                 "Browser scrape complete for '%s' (%s): "
@@ -181,6 +343,7 @@ async def browser_scrape(
                     return BrowserScrapeResult(listings=[], search_used=False)
                 html_content = await page.evaluate("() => document.documentElement.outerHTML")
                 listings = extract_listings_from_html(html_content, portal.name)
+                listings = await _enrich_with_details(listings, browser, portal)
                 return BrowserScrapeResult(listings=listings, search_used=False)
 
             all_listings: list[ProcurementListing] = []
@@ -310,6 +473,11 @@ async def browser_scrape(
                 )
 
             deduplicated = deduplicate_listings(all_listings)
+
+            # Enrich sparse listings by visiting detail pages
+            deduplicated = await _enrich_with_details(
+                deduplicated, browser, portal
+            )
 
             logger.info(
                 "Browser keyword search complete for '%s': "

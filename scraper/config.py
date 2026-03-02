@@ -55,6 +55,9 @@ BROWSER_MAX_STEPS: int = int(os.environ.get("BROWSER_MAX_STEPS", "10"))
 BROWSER_SEARCH_MAX_STEPS: int = int(
     os.environ.get("BROWSER_SEARCH_MAX_STEPS", "50")
 )
+BROWSER_DETAIL_MAX_PAGES: int = int(
+    os.environ.get("BROWSER_DETAIL_MAX_PAGES", "10")
+)
 
 # ---------------------------------------------------------------------------
 # Portal management

@@ -755,3 +755,327 @@ class TestBrowserScrapeFallback:
 
         assert len(result.listings) >= 1
         assert result.listings[0].title == "Before crash"
+
+
+# ---------------------------------------------------------------------------
+# TestIsSparse
+# ---------------------------------------------------------------------------
+
+class TestIsSparse:
+    def test_sparse_when_all_detail_fields_none(self):
+        from scraper.pipeline.browser_scraper import _is_sparse
+        listing = ProcurementListing(title="Test")
+        assert _is_sparse(listing) is True
+
+    def test_not_sparse_when_description_present(self):
+        from scraper.pipeline.browser_scraper import _is_sparse
+        listing = ProcurementListing(title="Test", description="Some desc")
+        assert _is_sparse(listing) is False
+
+    def test_not_sparse_when_closing_date_present(self):
+        from scraper.pipeline.browser_scraper import _is_sparse
+        listing = ProcurementListing(title="Test", closing_date="2026-03-30")
+        assert _is_sparse(listing) is False
+
+    def test_not_sparse_when_value_min_present(self):
+        from scraper.pipeline.browser_scraper import _is_sparse
+        listing = ProcurementListing(title="Test", value_min=50000.0)
+        assert _is_sparse(listing) is False
+
+
+# ---------------------------------------------------------------------------
+# TestResolveUrl
+# ---------------------------------------------------------------------------
+
+class TestResolveUrl:
+    def test_absolute_url_returned_unchanged(self):
+        from scraper.pipeline.browser_scraper import _resolve_url
+        result = _resolve_url("https://seao.ca/detail/123", "https://seao.ca/")
+        assert result == "https://seao.ca/detail/123"
+
+    def test_relative_url_resolved(self):
+        from scraper.pipeline.browser_scraper import _resolve_url
+        result = _resolve_url("/detail/123", "https://seao.ca/listings/")
+        assert result == "https://seao.ca/detail/123"
+
+    def test_relative_url_without_leading_slash(self):
+        from scraper.pipeline.browser_scraper import _resolve_url
+        result = _resolve_url("detail/123", "https://seao.ca/listings/")
+        assert result == "https://seao.ca/listings/detail/123"
+
+
+# ---------------------------------------------------------------------------
+# TestMergeDetail
+# ---------------------------------------------------------------------------
+
+class TestMergeDetail:
+    def test_merge_fills_none_fields(self):
+        from scraper.pipeline.browser_scraper import _merge_detail
+        original = ProcurementListing(
+            title="Translation Services",
+            source_url="https://seao.ca/detail/123",
+        )
+        detail = ProcurementListing(
+            title="Translation and Editing Services",  # different title
+            description="Full description from detail page",
+            closing_date="2026-04-15",
+            value_min=50000.0,
+            reference_number="REF-001",
+        )
+        merged = _merge_detail(original, detail)
+        # Title preserved from original
+        assert merged.title == "Translation Services"
+        # Detail fields filled in
+        assert merged.description == "Full description from detail page"
+        assert merged.closing_date == "2026-04-15"
+        assert merged.value_min == 50000.0
+        assert merged.reference_number == "REF-001"
+        # source_url preserved from original
+        assert merged.source_url == "https://seao.ca/detail/123"
+
+    def test_merge_does_not_overwrite_existing(self):
+        from scraper.pipeline.browser_scraper import _merge_detail
+        original = ProcurementListing(
+            title="Test",
+            reference_number="ORIG-001",
+        )
+        detail = ProcurementListing(
+            title="Different",
+            reference_number="DETAIL-001",
+            description="Detail desc",
+        )
+        merged = _merge_detail(original, detail)
+        assert merged.reference_number == "ORIG-001"  # original preserved
+        assert merged.description == "Detail desc"  # detail fills None
+
+
+# ---------------------------------------------------------------------------
+# TestEnrichWithDetails
+# ---------------------------------------------------------------------------
+
+class TestEnrichWithDetails:
+    @patch("scraper.pipeline.browser_scraper.extract_listing_detail")
+    def test_enriches_sparse_listings_with_urls(
+        self, mock_detail, mock_browser_use_module
+    ):
+        from scraper.pipeline.browser_scraper import _enrich_with_details
+
+        sparse_listing = ProcurementListing(
+            title="Translation Services",
+            source_url="https://seao.ca/detail/123",
+        )
+        full_listing = ProcurementListing(
+            title="Translation Services Detail",
+            description="Full description",
+            closing_date="2026-04-15",
+            value_min=50000.0,
+        )
+
+        mock_detail.return_value = full_listing
+
+        mock_page = AsyncMock()
+        mock_page.evaluate.return_value = "<html>detail page</html>"
+
+        mock_browser_inst = AsyncMock()
+        mock_browser_inst.get_current_page.return_value = mock_page
+
+        portal = PortalRecord(
+            id="portal-001", name="SEAO", url="https://seao.ca/",
+            level="provincial", province="Quebec", language="fr",
+            requires_login=True, enabled=True,
+        )
+
+        result = asyncio.get_event_loop().run_until_complete(
+            _enrich_with_details([sparse_listing], mock_browser_inst, portal)
+        )
+
+        assert len(result) == 1
+        assert result[0].title == "Translation Services"  # original title
+        assert result[0].description == "Full description"
+        assert result[0].closing_date == "2026-04-15"
+        assert result[0].value_min == 50000.0
+
+    @patch("scraper.pipeline.browser_scraper.extract_listing_detail")
+    def test_skips_non_sparse_listings(
+        self, mock_detail, mock_browser_use_module
+    ):
+        from scraper.pipeline.browser_scraper import _enrich_with_details
+
+        full_listing = ProcurementListing(
+            title="Already Full",
+            description="Has description",
+            closing_date="2026-04-15",
+            source_url="https://seao.ca/detail/456",
+        )
+
+        portal = PortalRecord(
+            id="portal-001", name="SEAO", url="https://seao.ca/",
+            level="provincial", province="Quebec", language="fr",
+            requires_login=True, enabled=True,
+        )
+
+        mock_browser_inst = AsyncMock()
+
+        result = asyncio.get_event_loop().run_until_complete(
+            _enrich_with_details([full_listing], mock_browser_inst, portal)
+        )
+
+        assert len(result) == 1
+        mock_detail.assert_not_called()
+
+    @patch("scraper.pipeline.browser_scraper.extract_listing_detail")
+    def test_skips_sparse_without_url(
+        self, mock_detail, mock_browser_use_module
+    ):
+        from scraper.pipeline.browser_scraper import _enrich_with_details
+
+        sparse_no_url = ProcurementListing(title="No URL")
+
+        portal = PortalRecord(
+            id="portal-001", name="SEAO", url="https://seao.ca/",
+            level="provincial", province="Quebec", language="fr",
+            requires_login=True, enabled=True,
+        )
+
+        mock_browser_inst = AsyncMock()
+
+        result = asyncio.get_event_loop().run_until_complete(
+            _enrich_with_details([sparse_no_url], mock_browser_inst, portal)
+        )
+
+        assert len(result) == 1
+        assert result[0].title == "No URL"
+        mock_detail.assert_not_called()
+
+    @patch("scraper.pipeline.browser_scraper.extract_listing_detail")
+    def test_respects_max_pages_config(
+        self, mock_detail, mock_browser_use_module
+    ):
+        from scraper.pipeline.browser_scraper import _enrich_with_details
+        from scraper import config
+
+        original_max = config.BROWSER_DETAIL_MAX_PAGES
+        config.BROWSER_DETAIL_MAX_PAGES = 2
+
+        try:
+            # 5 sparse listings with URLs
+            listings = [
+                ProcurementListing(title=f"Listing {i}", source_url=f"https://seao.ca/{i}")
+                for i in range(5)
+            ]
+
+            mock_detail.return_value = ProcurementListing(
+                title="Detail", description="Enriched"
+            )
+
+            mock_page = AsyncMock()
+            mock_page.evaluate.return_value = "<html>detail</html>"
+            mock_browser_inst = AsyncMock()
+            mock_browser_inst.get_current_page.return_value = mock_page
+
+            portal = PortalRecord(
+                id="portal-001", name="SEAO", url="https://seao.ca/",
+                level="provincial", province="Quebec", language="fr",
+                requires_login=True, enabled=True,
+            )
+
+            result = asyncio.get_event_loop().run_until_complete(
+                _enrich_with_details(listings, mock_browser_inst, portal)
+            )
+
+            # Only 2 should be enriched (max_pages=2)
+            assert mock_detail.call_count == 2
+            assert len(result) == 5  # all returned, just only 2 enriched
+        finally:
+            config.BROWSER_DETAIL_MAX_PAGES = original_max
+
+    @patch("scraper.pipeline.browser_scraper.extract_listing_detail")
+    def test_handles_detail_extraction_failure_gracefully(
+        self, mock_detail, mock_browser_use_module
+    ):
+        from scraper.pipeline.browser_scraper import _enrich_with_details
+
+        sparse_listing = ProcurementListing(
+            title="Translation Services",
+            source_url="https://seao.ca/detail/123",
+        )
+
+        mock_detail.return_value = None  # extraction failed
+
+        mock_page = AsyncMock()
+        mock_page.evaluate.return_value = "<html>detail page</html>"
+        mock_browser_inst = AsyncMock()
+        mock_browser_inst.get_current_page.return_value = mock_page
+
+        portal = PortalRecord(
+            id="portal-001", name="SEAO", url="https://seao.ca/",
+            level="provincial", province="Quebec", language="fr",
+            requires_login=True, enabled=True,
+        )
+
+        result = asyncio.get_event_loop().run_until_complete(
+            _enrich_with_details([sparse_listing], mock_browser_inst, portal)
+        )
+
+        # Original listing returned unchanged
+        assert len(result) == 1
+        assert result[0].title == "Translation Services"
+        assert result[0].description is None  # still sparse
+
+    @patch("scraper.pipeline.browser_scraper.extract_listing_detail")
+    def test_handles_navigation_error_gracefully(
+        self, mock_detail, mock_browser_use_module
+    ):
+        from scraper.pipeline.browser_scraper import _enrich_with_details
+
+        sparse_listing = ProcurementListing(
+            title="Translation Services",
+            source_url="https://seao.ca/detail/123",
+        )
+
+        mock_page = AsyncMock()
+        mock_page.goto.side_effect = Exception("Navigation failed")
+        mock_browser_inst = AsyncMock()
+        mock_browser_inst.get_current_page.return_value = mock_page
+
+        portal = PortalRecord(
+            id="portal-001", name="SEAO", url="https://seao.ca/",
+            level="provincial", province="Quebec", language="fr",
+            requires_login=True, enabled=True,
+        )
+
+        result = asyncio.get_event_loop().run_until_complete(
+            _enrich_with_details([sparse_listing], mock_browser_inst, portal)
+        )
+
+        # Original listing returned unchanged despite error
+        assert len(result) == 1
+        assert result[0].title == "Translation Services"
+        mock_detail.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TestStripHtmlPreservesUrls
+# ---------------------------------------------------------------------------
+
+class TestStripHtmlPreservesUrls:
+    def test_preserves_href_in_output(self):
+        from scraper.pipeline.extraction import strip_html
+        html = '''<html><body>
+        <table><tr>
+        <td><a href="https://seao.ca/detail/123">Translation Services</a></td>
+        <td>Open</td>
+        </tr></table>
+        </body></html>'''
+        result = strip_html(html)
+        assert "https://seao.ca/detail/123" in result
+        assert "Translation Services" in result
+
+    def test_preserves_relative_href(self):
+        from scraper.pipeline.extraction import strip_html
+        html = '''<html><body>
+        <a href="/listings/detail?id=456">IT Consulting</a>
+        </body></html>'''
+        result = strip_html(html)
+        assert "/listings/detail?id=456" in result
+        assert "IT Consulting" in result
