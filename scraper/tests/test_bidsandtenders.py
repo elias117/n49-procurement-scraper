@@ -621,14 +621,59 @@ class TestIsSparse:
         listing = ProcurementListing(title="Test")
         assert _is_sparse(listing) is True
 
-    def test_not_sparse_when_description_present(self):
-        listing = ProcurementListing(title="Test", description="Details here")
+    def test_sparse_when_description_is_short(self):
+        """Description under 50 chars is treated as sparse (summary fragment)."""
+        listing = ProcurementListing(title="Test", description="Short desc")
+        assert _is_sparse(listing) is True
+
+    def test_sparse_when_description_present_but_missing_date_and_contact(self):
+        """Listing with long description but no closing_date and no contact is sparse."""
+        listing = ProcurementListing(
+            title="Test",
+            description="A" * 60,  # Long enough, but missing date + contact
+        )
+        assert _is_sparse(listing) is True
+
+    def test_not_sparse_when_description_and_closing_date_present(self):
+        """Listing with long description and closing_date is NOT sparse."""
+        listing = ProcurementListing(
+            title="Test",
+            description="A sufficiently long description with real details inside",
+            closing_date="2026-04-01",
+        )
+        assert _is_sparse(listing) is False
+
+    def test_not_sparse_when_description_and_contact_present(self):
+        """Listing with long description and contact_name is NOT sparse."""
+        listing = ProcurementListing(
+            title="Test",
+            description="A sufficiently long description with real details inside",
+            contact_name="Jane Doe",
+        )
         assert _is_sparse(listing) is False
 
     def test_sparse_when_only_closing_date_present(self):
         """A listing with closing_date but no description is still sparse."""
         listing = ProcurementListing(title="Test", closing_date="2026-04-01")
         assert _is_sparse(listing) is True
+
+    def test_sparse_boundary_49_chars(self):
+        """Description of exactly 49 chars is sparse."""
+        listing = ProcurementListing(
+            title="Test",
+            description="A" * 49,
+            closing_date="2026-04-01",
+        )
+        assert _is_sparse(listing) is True
+
+    def test_not_sparse_boundary_50_chars(self):
+        """Description of exactly 50 chars with closing_date is not sparse."""
+        listing = ProcurementListing(
+            title="Test",
+            description="A" * 50,
+            closing_date="2026-04-01",
+        )
+        assert _is_sparse(listing) is False
 
 
 # ---------------------------------------------------------------------------
@@ -747,11 +792,12 @@ class TestEnrichWithDetails:
     @pytest.mark.asyncio
     @patch("scraper.pipeline.bidsandtenders.extract_listing_detail")
     async def test_skips_non_sparse_listings(self, mock_extract_detail):
-        """Listings that already have descriptions are not enriched."""
+        """Listings with full description + closing_date are not enriched."""
         portal = _make_portal()
         complete_listing = ProcurementListing(
             title="Complete Tender",
-            description="Already has description",
+            description="A complete listing with a full description that exceeds fifty characters easily",
+            closing_date="2026-05-01",
             source_url="https://example.com/1",
             source_listing_id="COMPLETE-1",
         )
@@ -761,7 +807,7 @@ class TestEnrichWithDetails:
         result = await _enrich_with_details([complete_listing], page, portal)
 
         assert len(result) == 1
-        assert result[0].description == "Already has description"
+        assert result[0].description == "A complete listing with a full description that exceeds fifty characters easily"
         mock_extract_detail.assert_not_called()
 
     @pytest.mark.asyncio

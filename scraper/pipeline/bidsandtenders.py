@@ -39,14 +39,25 @@ class BidsAndTendersResult(NamedTuple):
 
 def _is_sparse(listing: ProcurementListing) -> bool:
     """
-    Check if a listing is sparse (missing description).
+    Check if a listing is sparse (missing key detail-page fields).
 
-    A listing is considered sparse if it lacks a description, which is the
-    primary detail field found on detail pages but typically missing from
-    listing/summary pages. BidsAndTenders listing pages show a table with
-    title and closing date but rarely descriptions.
+    A listing is considered sparse if:
+    - It has no description at all, OR
+    - Its description is very short (<50 chars -- likely a fragment from the
+      summary page, not the full detail), OR
+    - It has a description but is missing BOTH closing_date and contact
+      information (fields typically found on detail pages).
+
+    BidsAndTenders listing pages show a table with title and maybe closing
+    date but rarely descriptions, contact info, or dollar values.
     """
-    return listing.description is None
+    if listing.description is None:
+        return True
+    if len(listing.description) < 50:
+        return True
+    if listing.closing_date is None and listing.contact_name is None:
+        return True
+    return False
 
 
 def _resolve_url(source_url: str, portal_url: str) -> str:
