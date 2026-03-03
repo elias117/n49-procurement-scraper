@@ -125,7 +125,12 @@ async def process_portal(
         for item in raw_listings:
             if isinstance(item, ProcurementListing):
                 listing_records.append(
-                    to_listing_record(item, portal.id, portal.language)
+                    to_listing_record(
+                        item,
+                        portal.id,
+                        portal.language,
+                        portal_province=portal.province,
+                    )
                 )
             else:
                 # Already a ListingRecord (e.g., from canadabuys)

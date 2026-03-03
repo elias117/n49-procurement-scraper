@@ -11,6 +11,44 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+# Canadian provinces/territories (full names + abbreviations), normalized to
+# lowercase for case-insensitive checks.
+CANADIAN_PROVINCES = {
+    "alberta",
+    "ab",
+    "british columbia",
+    "bc",
+    "manitoba",
+    "mb",
+    "new brunswick",
+    "nb",
+    "newfoundland and labrador",
+    "nl",
+    "nova scotia",
+    "ns",
+    "ontario",
+    "on",
+    "prince edward island",
+    "pe",
+    "quebec",
+    "qc",
+    "saskatchewan",
+    "sk",
+    "northwest territories",
+    "nt",
+    "nunavut",
+    "nu",
+    "yukon",
+    "yt",
+}
+
+
+def _is_valid_canadian_province(value: Optional[str]) -> bool:
+    """Return True when value is a known Canadian province/territory token."""
+    if value is None:
+        return False
+    return value.strip().lower() in CANADIAN_PROVINCES
+
 
 # ---------------------------------------------------------------------------
 # ProcurementListing — instructor extraction target
@@ -187,12 +225,14 @@ def to_listing_record(
     extraction: ProcurementListing,
     portal_id: str,
     language: str,
+    portal_province: Optional[str] = None,
 ) -> ListingRecord:
     """
     Convert a ProcurementListing (LLM output) to a ListingRecord (DB-ready).
 
     Consolidates contact_name/contact_email/contact_phone into contact_info
-    JSONB dict, omitting keys with None values.
+    JSONB dict, omitting keys with None values. Falls back to portal province
+    when extracted province is missing or invalid.
     """
     # Build contact_info from separate contact fields
     contact_info = {}
@@ -202,6 +242,14 @@ def to_listing_record(
         contact_info["email"] = extraction.contact_email
     if extraction.contact_phone is not None:
         contact_info["phone"] = extraction.contact_phone
+
+    extracted_province = extraction.province.strip() if extraction.province else None
+    if _is_valid_canadian_province(extracted_province):
+        resolved_province = extracted_province
+    elif portal_province and portal_province.strip():
+        resolved_province = portal_province.strip()
+    else:
+        resolved_province = extracted_province
 
     return ListingRecord(
         title=extraction.title,
@@ -215,7 +263,7 @@ def to_listing_record(
         source_url=extraction.source_url,
         source_listing_id=extraction.source_listing_id,
         classification_codes=extraction.classification_codes,
-        province=extraction.province,
+        province=resolved_province,
         raw_location=extraction.raw_location,
         documents=extraction.documents,
         source_portal=portal_id,

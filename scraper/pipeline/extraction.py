@@ -26,6 +26,45 @@ from scraper.models import ExtractionResult, ProcurementListing
 
 logger = logging.getLogger(__name__)
 
+# Canadian provinces/territories (full names + abbreviations), normalized to
+# lowercase for case-insensitive checks.
+CANADIAN_PROVINCES = {
+    "alberta",
+    "ab",
+    "british columbia",
+    "bc",
+    "manitoba",
+    "mb",
+    "new brunswick",
+    "nb",
+    "newfoundland and labrador",
+    "nl",
+    "nova scotia",
+    "ns",
+    "ontario",
+    "on",
+    "prince edward island",
+    "pe",
+    "quebec",
+    "qc",
+    "saskatchewan",
+    "sk",
+    "northwest territories",
+    "nt",
+    "nunavut",
+    "nu",
+    "yukon",
+    "yt",
+}
+
+_NO_RESULTS_MARKERS = (
+    "did not match any results",
+    "no results found",
+    "aucun resultat",
+    "aucun résultat",
+    "no tenders found",
+)
+
 # ---------------------------------------------------------------------------
 # System prompt for extraction -- controls quality
 # ---------------------------------------------------------------------------
@@ -42,7 +81,8 @@ CRITICAL RULES:
 - If a value range is stated (e.g., "$50,000 - $100,000"), extract both min and max.
 - Include the direct URL to each listing if visible as a link.
 - For reference/solicitation numbers, extract exactly as shown.
-- Classification codes: only extract if explicitly labeled as NAICS, UNSPSC, GSIN, or commodity code."""
+- Classification codes: only extract if explicitly labeled as NAICS, UNSPSC, GSIN, or commodity code.
+- Province must be one of the 13 Canadian provinces/territories (full name). If not clearly Canadian, return null."""
 
 # Tags whose entire content should be removed before extraction
 _REMOVE_TAGS = {"script", "style", "nav", "footer", "header", "aside"}
@@ -93,6 +133,13 @@ def strip_html(html_content: str) -> str:
     # Collapse multiple blank lines into single newlines
     text = re.sub(r"\n{3,}", "\n\n", text)
 
+    lowered_text = text.lower()
+    if any(marker in lowered_text for marker in _NO_RESULTS_MARKERS):
+        logger.info(
+            "Detected no-results page marker; returning empty stripped text"
+        )
+        return ""
+
     stripped_size = len(text)
     ratio = original_size / stripped_size if stripped_size > 0 else 0
 
@@ -104,6 +151,20 @@ def strip_html(html_content: str) -> str:
     )
 
     return text
+
+
+def _should_filter_title(title: str) -> bool:
+    """Return True if title looks like a search query artifact/noise."""
+    normalized = title.strip()
+    if not normalized:
+        return True
+    if " OR " in normalized:
+        return True
+    if normalized.lower().startswith("search results for"):
+        return True
+    if len(normalized) > 300:
+        return True
+    return False
 
 
 @retry(
@@ -193,13 +254,25 @@ def extract_listings_from_html(
 
     result = _call_instructor_extract(client, stripped_text, portal_name)
 
+    filtered_listings = []
+    for listing in result.listings:
+        if _should_filter_title(listing.title):
+            logger.info(
+                "Dropping likely query/no-results title for '%s': %s",
+                portal_name,
+                listing.title[:120],
+            )
+            continue
+        filtered_listings.append(listing)
+
     logger.info(
-        "Extracted %d listings from portal '%s'",
+        "Extracted %d listings from portal '%s' (%d after title filtering)",
         len(result.listings),
         portal_name,
+        len(filtered_listings),
     )
 
-    return result.listings
+    return filtered_listings
 
 
 def extract_listing_detail(

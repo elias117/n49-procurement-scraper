@@ -10,6 +10,7 @@ The ONLY rejection case is a missing title -- no title means no listing.
 
 import hashlib
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -35,6 +36,39 @@ VALID_STATUSES = {"open", "closed", "cancelled", "awarded"}
 # Upper bound for contract values (CAD)
 VALUE_UPPER_BOUND = 10_000_000_000  # 10 billion
 
+# Canadian provinces/territories (full names + abbreviations), normalized to
+# lowercase for case-insensitive validation.
+CANADIAN_PROVINCES = {
+    "alberta",
+    "ab",
+    "british columbia",
+    "bc",
+    "manitoba",
+    "mb",
+    "new brunswick",
+    "nb",
+    "newfoundland and labrador",
+    "nl",
+    "nova scotia",
+    "ns",
+    "ontario",
+    "on",
+    "prince edward island",
+    "pe",
+    "quebec",
+    "qc",
+    "saskatchewan",
+    "sk",
+    "northwest territories",
+    "nt",
+    "nunavut",
+    "nu",
+    "yukon",
+    "yt",
+}
+
+HTTP_URL_RE = re.compile(r"^https?://[^\s]+$", re.IGNORECASE)
+
 
 def validate_listing(listing: ListingRecord) -> ListingRecord:
     """
@@ -49,7 +83,8 @@ def validate_listing(listing: ListingRecord) -> ListingRecord:
     5. value_max < value_min -> null both.
     6. Invalid status -> default to 'open'.
     7. Classification codes missing system/code keys -> remove entries.
-    8. Invalid URL format -> null source_url.
+    8. Province not in Canadian province/territory set -> null province.
+    9. Invalid URL format -> null source_url.
 
     Args:
         listing: A ListingRecord to validate.
@@ -150,15 +185,26 @@ def validate_listing(listing: ListingRecord) -> ListingRecord:
                 )
         listing.classification_codes = valid_codes if valid_codes else None
 
-    # Rule 8: URL format validation
+    # Rule 8: Province validation
+    if listing.province is not None:
+        normalized_province = listing.province.strip().lower()
+        if not normalized_province or normalized_province not in CANADIAN_PROVINCES:
+            logger.warning(
+                "Invalid non-Canadian province '%s'; nullifying province.",
+                listing.province,
+            )
+            listing.province = None
+
+    # Rule 9: URL format validation
     if listing.source_url is not None:
-        if not listing.source_url.startswith(
-            ("http://", "https://")
-        ):
+        source_url = listing.source_url.strip()
+        if not source_url or not HTTP_URL_RE.match(source_url):
             logger.warning(
                 "Invalid URL format '%s'; nullifying source_url.", listing.source_url
             )
             listing.source_url = None
+        else:
+            listing.source_url = source_url
 
     return listing
 

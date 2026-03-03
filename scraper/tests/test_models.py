@@ -213,3 +213,25 @@ class TestToListingRecord:
         extraction = ProcurementListing(title="Test")
         record = to_listing_record(extraction, "portal-123", "en")
         assert record.contact_info is None
+
+    def test_to_listing_record_falls_back_to_portal_province_when_missing(self):
+        """Portal province is used when extraction province is missing."""
+        extraction = ProcurementListing(title="Test", province=None)
+        record = to_listing_record(
+            extraction,
+            "portal-123",
+            "en",
+            portal_province="Quebec",
+        )
+        assert record.province == "Quebec"
+
+    def test_to_listing_record_falls_back_to_portal_province_when_invalid(self):
+        """Portal province is used when extraction province is non-Canadian."""
+        extraction = ProcurementListing(title="Test", province="Kosovo")
+        record = to_listing_record(
+            extraction,
+            "portal-123",
+            "en",
+            portal_province="Ontario",
+        )
+        assert record.province == "Ontario"
