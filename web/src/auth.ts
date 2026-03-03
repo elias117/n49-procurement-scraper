@@ -1,10 +1,9 @@
 /**
  * Auth.js v5 configuration for credential-based authentication.
- * Password verification happens here in the Next.js layer using bcryptjs.
+ * Password verification is delegated to the API (/auth/verify).
  */
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { compare } from "bcryptjs";
 import { z } from "zod/v4";
 
 const API_INTERNAL_URL =
@@ -15,12 +14,19 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-async function getUser(username: string) {
-  const res = await fetch(
-    `${API_INTERNAL_URL}/auth/user?username=${encodeURIComponent(username)}`
-  );
-  if (!res.ok) return null;
-  return res.json();
+async function verifyUser(username: string, password: string) {
+  try {
+    const res = await fetch(`${API_INTERNAL_URL}/auth/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -36,11 +42,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
 
         const { username, password } = parsed.data;
-        const user = await getUser(username);
+        const user = await verifyUser(username, password);
         if (!user) return null;
-
-        const passwordMatch = await compare(password, user.password_hash);
-        if (!passwordMatch) return null;
 
         return {
           id: user.id,

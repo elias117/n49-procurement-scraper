@@ -7,8 +7,6 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is required.")
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY environment variable is required.")
 
 OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
 
@@ -25,3 +23,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("api")
+
+if not OPENAI_API_KEY:
+    logger.warning(
+        "OPENAI_API_KEY is not set; semantic search embeddings will be disabled."
+    )

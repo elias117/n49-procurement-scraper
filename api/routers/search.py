@@ -29,15 +29,15 @@ def search_listings(
     ),
     sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
     include_closed: bool = Query(default=False),
-    regions: Optional[list] = Query(default=None),
-    portals: Optional[list] = Query(default=None),
+    regions: Optional[list[str]] = Query(default=None),
+    portals: Optional[list[str]] = Query(default=None),
     closing_date_from: Optional[datetime] = Query(default=None),
     closing_date_to: Optional[datetime] = Query(default=None),
     posting_date_from: Optional[datetime] = Query(default=None),
     posting_date_to: Optional[datetime] = Query(default=None),
     value_min: Optional[float] = Query(default=None),
     value_max: Optional[float] = Query(default=None),
-    classification_codes: Optional[list] = Query(default=None),
+    classification_codes: Optional[list[str]] = Query(default=None),
 ):
     """Search procurement listings with hybrid keyword + semantic search."""
     params = SearchRequest(

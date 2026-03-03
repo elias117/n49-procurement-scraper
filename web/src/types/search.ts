@@ -22,7 +22,6 @@ export interface FacetValue {
 export interface FacetCounts {
   provinces: FacetValue[];
   portals: FacetValue[];
-  statuses: FacetValue[];
 }
 
 export interface SearchResponse {

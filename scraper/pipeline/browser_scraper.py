@@ -86,6 +86,16 @@ def _resolve_url(source_url: str, portal_url: str) -> str:
     return urljoin(portal_url, source_url)
 
 
+def _normalize_url(value) -> str | None:
+    """Normalize an extracted URL-like value to a non-empty string."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return str(value)
+
+
 def _fix_source_urls(
     listings: list[ProcurementListing],
     page_url: str,
@@ -100,13 +110,19 @@ def _fix_source_urls(
     with the browser's current page URL.
     """
     portal_domain = urlparse(portal_url).netloc.lower()
+    fallback_url = _normalize_url(page_url) or portal_url
     for listing in listings:
-        if listing.source_url is None:
-            listing.source_url = page_url
+        source_url = _normalize_url(listing.source_url)
+        if not source_url:
+            listing.source_url = fallback_url
+            continue
+
+        resolved_url = _resolve_url(source_url, portal_url)
+        listing_domain = urlparse(resolved_url).netloc.lower()
+        if listing_domain and listing_domain != portal_domain:
+            listing.source_url = fallback_url
         else:
-            listing_domain = urlparse(listing.source_url).netloc.lower()
-            if listing_domain and listing_domain != portal_domain:
-                listing.source_url = page_url
+            listing.source_url = resolved_url
     return listings
 
 
@@ -163,11 +179,13 @@ async def _enrich_with_details(
     Returns:
         Updated list of ProcurementListing objects with enriched details.
     """
-    sparse_listings = [
-        (i, listing)
-        for i, listing in enumerate(listings)
-        if listing.source_url and _is_sparse(listing)
-    ]
+    sparse_listings = []
+    for i, listing in enumerate(listings):
+        source_url = _normalize_url(listing.source_url)
+        if source_url:
+            listing.source_url = source_url
+        if source_url and _is_sparse(listing):
+            sparse_listings.append((i, listing))
 
     if not sparse_listings:
         logger.info(
