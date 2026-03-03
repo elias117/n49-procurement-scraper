@@ -127,6 +127,7 @@ class TestBrowserScrapeNoKeywords:
         from scraper.pipeline.browser_scraper import browser_scrape
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
         mock_extract.return_value = []
 
@@ -152,6 +153,7 @@ class TestBrowserScrapeNoKeywords:
         from scraper.pipeline.browser_scraper import browser_scrape, BrowserScrapeResult
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
         mock_extract.return_value = []
 
@@ -180,6 +182,7 @@ class TestBrowserScrapeNoKeywords:
         from scraper import config
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
         mock_extract.return_value = []
 
@@ -205,6 +208,7 @@ class TestBrowserScrapeNoKeywords:
         from scraper.pipeline.browser_scraper import browser_scrape
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
         mock_extract.return_value = []
 
@@ -245,6 +249,7 @@ class TestBrowserScrapeKeywordSearch:
         mock_extract.return_value = []
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -280,6 +285,7 @@ class TestBrowserScrapeKeywordSearch:
         mock_extract.return_value = []
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -313,6 +319,7 @@ class TestBrowserScrapeKeywordSearch:
         mock_extract.return_value = []
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -348,6 +355,7 @@ class TestBrowserScrapeKeywordSearch:
         mock_extract.return_value = []
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -388,6 +396,7 @@ class TestBrowserScrapeKeywordSearch:
         ]
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -423,6 +432,7 @@ class TestBrowserScrapeKeywordSearch:
         mock_dedup.return_value = [listing1]  # One duplicate removed
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -501,6 +511,7 @@ class TestBrowserScrapeOrFallback:
         mock_extract.return_value = [ProcurementListing(title="Test", source_listing_id="T1")]
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -539,6 +550,7 @@ class TestBrowserScrapeOrFallback:
         ]
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -589,6 +601,7 @@ class TestBrowserScrapeOrFallback:
         ]
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -629,6 +642,7 @@ class TestBrowserScrapeFallback:
         mock_extract.return_value = [ProcurementListing(title="Visible", source_listing_id="V1")]
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -661,6 +675,7 @@ class TestBrowserScrapeFallback:
         mock_extract.return_value = [visible_listing]
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -700,6 +715,7 @@ class TestBrowserScrapeFallback:
         ]
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -734,6 +750,7 @@ class TestBrowserScrapeFallback:
         listing1 = ProcurementListing(title="Before crash", source_listing_id="BC1")
 
         mock_page = AsyncMock()
+        mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
         mock_browser_inst = AsyncMock()
@@ -852,6 +869,45 @@ class TestResolveUrl:
         from scraper.pipeline.browser_scraper import _resolve_url
         result = _resolve_url("detail/123", "https://seao.ca/listings/")
         assert result == "https://seao.ca/listings/detail/123"
+
+
+# ---------------------------------------------------------------------------
+# TestFixSourceUrls
+# ---------------------------------------------------------------------------
+
+class TestFixSourceUrls:
+    def test_external_url_replaced_with_page_url(self):
+        from scraper.pipeline.browser_scraper import _fix_source_urls
+        listing = ProcurementListing(
+            title="Test",
+            source_url="https://www.globaltenders.com/some-tender",
+        )
+        result = _fix_source_urls([listing], "https://www.seao.ca/results", "https://www.seao.ca/")
+        assert result[0].source_url == "https://www.seao.ca/results"
+
+    def test_matching_domain_kept(self):
+        from scraper.pipeline.browser_scraper import _fix_source_urls
+        listing = ProcurementListing(
+            title="Test",
+            source_url="https://www.seao.ca/detail/123",
+        )
+        result = _fix_source_urls([listing], "https://www.seao.ca/results", "https://www.seao.ca/")
+        assert result[0].source_url == "https://www.seao.ca/detail/123"
+
+    def test_none_url_gets_page_url(self):
+        from scraper.pipeline.browser_scraper import _fix_source_urls
+        listing = ProcurementListing(title="Test", source_url=None)
+        result = _fix_source_urls([listing], "https://www.seao.ca/results", "https://www.seao.ca/")
+        assert result[0].source_url == "https://www.seao.ca/results"
+
+    def test_tendersontime_replaced(self):
+        from scraper.pipeline.browser_scraper import _fix_source_urls
+        listing = ProcurementListing(
+            title="Russian Translation",
+            source_url="https://www.tendersontime.com/tenders-details/some-tender-82a4a27/",
+        )
+        result = _fix_source_urls([listing], "https://www.seao.ca/results", "https://www.seao.ca/")
+        assert result[0].source_url == "https://www.seao.ca/results"
 
 
 # ---------------------------------------------------------------------------

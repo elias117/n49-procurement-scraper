@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import NamedTuple
+from urllib.parse import urlparse
 
 from scraper import config
 from scraper.models import PortalRecord, ProcurementListing
@@ -83,6 +84,30 @@ def _resolve_url(source_url: str, portal_url: str) -> str:
         return source_url
     from urllib.parse import urljoin
     return urljoin(portal_url, source_url)
+
+
+def _fix_source_urls(
+    listings: list[ProcurementListing],
+    page_url: str,
+    portal_url: str,
+) -> list[ProcurementListing]:
+    """
+    Replace source_url values that point to external sites.
+
+    The LLM often extracts random URLs from page content (company websites,
+    aggregator sites) instead of the actual listing URL on the portal.
+    Any source_url whose domain doesn't match the portal domain is replaced
+    with the browser's current page URL.
+    """
+    portal_domain = urlparse(portal_url).netloc.lower()
+    for listing in listings:
+        if listing.source_url is None:
+            listing.source_url = page_url
+        else:
+            listing_domain = urlparse(listing.source_url).netloc.lower()
+            if listing_domain and listing_domain != portal_domain:
+                listing.source_url = page_url
+    return listings
 
 
 def _merge_detail(
@@ -295,8 +320,10 @@ async def browser_scrape(
                 return BrowserScrapeResult(listings=[], search_used=False)
 
             html_content = await page.evaluate("() => document.documentElement.outerHTML")
+            page_url = page.url
 
             listings = extract_listings_from_html(html_content, portal.name)
+            listings = _fix_source_urls(listings, page_url, portal.url)
 
             # Enrich sparse listings by visiting detail pages
             listings = await _enrich_with_details(listings, browser, portal)
@@ -352,7 +379,9 @@ async def browser_scrape(
                 if page is None:
                     return BrowserScrapeResult(listings=[], search_used=False)
                 html_content = await page.evaluate("() => document.documentElement.outerHTML")
+                page_url = page.url
                 listings = extract_listings_from_html(html_content, portal.name)
+                listings = _fix_source_urls(listings, page_url, portal.url)
                 listings = await _enrich_with_details(listings, browser, portal)
                 return BrowserScrapeResult(listings=listings, search_used=False)
 
@@ -430,7 +459,9 @@ async def browser_scrape(
                     page = await browser.get_current_page()
                     if page is not None:
                         html = await page.evaluate("() => document.documentElement.outerHTML")
+                        page_url = page.url
                         listings = extract_listings_from_html(html, portal.name)
+                        listings = _fix_source_urls(listings, page_url, portal.url)
 
                         if or_supported and not listings and search_detected:
                             or_supported = False
@@ -458,7 +489,9 @@ async def browser_scrape(
                                 page = await browser.get_current_page()
                                 if page is not None:
                                     html = await page.evaluate("() => document.documentElement.outerHTML")
+                                    page_url = page.url
                                     listings = extract_listings_from_html(html, portal.name)
+                                    listings = _fix_source_urls(listings, page_url, portal.url)
 
                         all_listings.extend(listings)
                         searches_completed += 1
