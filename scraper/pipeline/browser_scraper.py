@@ -320,7 +320,7 @@ async def browser_scrape(
                 return BrowserScrapeResult(listings=[], search_used=False)
 
             html_content = await page.evaluate("() => document.documentElement.outerHTML")
-            page_url = page.url
+            page_url = await page.evaluate("() => window.location.href")
 
             listings = extract_listings_from_html(html_content, portal.name)
             listings = _fix_source_urls(listings, page_url, portal.url)
@@ -379,7 +379,7 @@ async def browser_scrape(
                 if page is None:
                     return BrowserScrapeResult(listings=[], search_used=False)
                 html_content = await page.evaluate("() => document.documentElement.outerHTML")
-                page_url = page.url
+                page_url = await page.evaluate("() => window.location.href")
                 listings = extract_listings_from_html(html_content, portal.name)
                 listings = _fix_source_urls(listings, page_url, portal.url)
                 listings = await _enrich_with_details(listings, browser, portal)
@@ -459,7 +459,7 @@ async def browser_scrape(
                     page = await browser.get_current_page()
                     if page is not None:
                         html = await page.evaluate("() => document.documentElement.outerHTML")
-                        page_url = page.url
+                        page_url = await page.evaluate("() => window.location.href")
                         listings = extract_listings_from_html(html, portal.name)
                         listings = _fix_source_urls(listings, page_url, portal.url)
 
@@ -489,7 +489,7 @@ async def browser_scrape(
                                 page = await browser.get_current_page()
                                 if page is not None:
                                     html = await page.evaluate("() => document.documentElement.outerHTML")
-                                    page_url = page.url
+                                    page_url = await page.evaluate("() => window.location.href")
                                     listings = extract_listings_from_html(html, portal.name)
                                     listings = _fix_source_urls(listings, page_url, portal.url)
 
