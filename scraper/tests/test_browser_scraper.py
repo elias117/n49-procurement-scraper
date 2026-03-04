@@ -871,6 +871,22 @@ class TestResolveUrl:
         assert result == "https://seao.ca/listings/detail/123"
 
 
+class TestSameDomain:
+    def test_www_and_apex_domains_match(self):
+        from scraper.pipeline.browser_scraper import _is_same_domain
+        assert _is_same_domain(
+            "https://seao.ca/detail/123",
+            "https://www.seao.ca",
+        ) is True
+
+    def test_unrelated_domains_do_not_match(self):
+        from scraper.pipeline.browser_scraper import _is_same_domain
+        assert _is_same_domain(
+            "https://globaltenders.com/a",
+            "https://www.seao.ca",
+        ) is False
+
+
 # ---------------------------------------------------------------------------
 # TestFixSourceUrls
 # ---------------------------------------------------------------------------
@@ -917,6 +933,29 @@ class TestFixSourceUrls:
         )
         result = _fix_source_urls([listing], "https://www.seao.ca/results", "https://www.seao.ca/")
         assert result[0].source_url == "https://seao.ca/detail?id=123&lang=fr"
+
+    def test_non_http_page_url_falls_back_to_portal_url(self):
+        from scraper.pipeline.browser_scraper import _fix_source_urls
+        listing = ProcurementListing(title="Test", source_url=None)
+        result = _fix_source_urls([listing], "about:blank", "https://www.seao.ca/")
+        assert result[0].source_url == "https://www.seao.ca/"
+
+
+class TestCurrentPageUrl:
+    def test_uses_page_url_when_http(self):
+        from scraper.pipeline.browser_scraper import _current_page_url
+        mock_page = AsyncMock()
+        mock_page.url = "https://www.seao.ca/results"
+        result = asyncio.get_event_loop().run_until_complete(_current_page_url(mock_page))
+        assert result == "https://www.seao.ca/results"
+
+    def test_ignores_non_http_page_url_and_uses_evaluated_url(self):
+        from scraper.pipeline.browser_scraper import _current_page_url
+        mock_page = AsyncMock()
+        mock_page.url = "about:blank"
+        mock_page.evaluate.return_value = "https://www.seao.ca/detail/123?lang=fr"
+        result = asyncio.get_event_loop().run_until_complete(_current_page_url(mock_page))
+        assert result == "https://www.seao.ca/detail/123?lang=fr"
 
 
 # ---------------------------------------------------------------------------

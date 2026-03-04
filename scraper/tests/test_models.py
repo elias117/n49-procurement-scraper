@@ -235,3 +235,14 @@ class TestToListingRecord:
             portal_province="Ontario",
         )
         assert record.province == "Ontario"
+
+    def test_to_listing_record_keeps_common_three_letter_abbreviation(self):
+        """Common abbreviations like PEI should be treated as valid."""
+        extraction = ProcurementListing(title="Test", province="PEI")
+        record = to_listing_record(
+            extraction,
+            "portal-123",
+            "en",
+            portal_province="Ontario",
+        )
+        assert record.province == "PEI"

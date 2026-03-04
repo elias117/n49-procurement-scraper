@@ -122,10 +122,13 @@ async def _current_page_url(page) -> str | None:
     from_attr = getattr(page, "url", None)
     if isinstance(from_attr, str):
         normalized = from_attr.strip()
-        if normalized:
+        if normalized.startswith(("http://", "https://")):
             return normalized
     try:
-        return _normalize_url(await page.evaluate("() => window.location.href"))
+        evaluated = _normalize_url(await page.evaluate("() => window.location.href"))
+        if evaluated and evaluated.startswith(("http://", "https://")):
+            return evaluated
+        return None
     except Exception:
         return None
 
@@ -143,7 +146,9 @@ def _fix_source_urls(
     Any source_url whose domain doesn't match the portal domain is replaced
     with the browser's current page URL.
     """
-    fallback_url = _normalize_url(page_url) or portal_url
+    fallback_url = _normalize_url(page_url)
+    if not fallback_url or not fallback_url.startswith(("http://", "https://")):
+        fallback_url = portal_url
     for listing in listings:
         source_url = _normalize_url(listing.source_url)
         if not source_url:

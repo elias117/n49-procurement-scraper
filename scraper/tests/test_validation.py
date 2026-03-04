@@ -157,6 +157,15 @@ class TestValidateListing:
         result = validate_listing(listing)
         assert result.province == "qc"
 
+    def test_common_province_abbreviations_preserved(self):
+        """Common 3-letter abbreviations should also remain valid."""
+        pei_listing = _make_listing(province="PEI")
+        nwt_listing = _make_listing(province="NWT")
+        pei_result = validate_listing(pei_listing)
+        nwt_result = validate_listing(nwt_listing)
+        assert pei_result.province == "PEI"
+        assert nwt_result.province == "NWT"
+
     def test_classification_codes_missing_keys_removed(self):
         """Entries without 'system' or 'code' keys should be removed."""
         listing = _make_listing(
