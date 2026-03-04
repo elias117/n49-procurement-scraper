@@ -86,9 +86,56 @@ def _resolve_url(source_url: str, portal_url: str) -> str:
     return urljoin(portal_url, source_url)
 
 
+def _normalize_url(value) -> str | None:
+    """Normalize an extracted URL-like value to a non-empty string."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return str(value)
+
+
+def _normalized_domain(url: str) -> str:
+    """Normalize domain for safer same-portal comparisons."""
+    netloc = urlparse(url).netloc.lower()
+    if "@" in netloc:
+        netloc = netloc.split("@", 1)[1]
+    if ":" in netloc:
+        netloc = netloc.split(":", 1)[0]
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+    return netloc
+
+
+def _is_same_domain(left_url: str, right_url: str) -> bool:
+    """Return True when URLs are on the same base domain or subdomain."""
+    left = _normalized_domain(left_url)
+    right = _normalized_domain(right_url)
+    if not left or not right:
+        return False
+    return left == right or left.endswith(f".{right}") or right.endswith(f".{left}")
+
+
+async def _current_page_url(page) -> str | None:
+    """Get the browser page's current URL with best-effort fallbacks."""
+    from_attr = getattr(page, "url", None)
+    if isinstance(from_attr, str):
+        normalized = from_attr.strip()
+        if normalized.startswith(("http://", "https://")):
+            return normalized
+    try:
+        evaluated = _normalize_url(await page.evaluate("() => window.location.href"))
+        if evaluated and evaluated.startswith(("http://", "https://")):
+            return evaluated
+        return None
+    except Exception:
+        return None
+
+
 def _fix_source_urls(
     listings: list[ProcurementListing],
-    page_url: str,
+    page_url: str | None,
     portal_url: str,
 ) -> list[ProcurementListing]:
     """
@@ -99,14 +146,20 @@ def _fix_source_urls(
     Any source_url whose domain doesn't match the portal domain is replaced
     with the browser's current page URL.
     """
-    portal_domain = urlparse(portal_url).netloc.lower()
+    fallback_url = _normalize_url(page_url)
+    if not fallback_url or not fallback_url.startswith(("http://", "https://")):
+        fallback_url = portal_url
     for listing in listings:
-        if listing.source_url is None:
-            listing.source_url = page_url
+        source_url = _normalize_url(listing.source_url)
+        if not source_url:
+            listing.source_url = fallback_url
+            continue
+
+        resolved_url = _resolve_url(source_url, portal_url)
+        if not _is_same_domain(resolved_url, portal_url):
+            listing.source_url = fallback_url
         else:
-            listing_domain = urlparse(listing.source_url).netloc.lower()
-            if listing_domain and listing_domain != portal_domain:
-                listing.source_url = page_url
+            listing.source_url = resolved_url
     return listings
 
 
@@ -163,11 +216,13 @@ async def _enrich_with_details(
     Returns:
         Updated list of ProcurementListing objects with enriched details.
     """
-    sparse_listings = [
-        (i, listing)
-        for i, listing in enumerate(listings)
-        if listing.source_url and _is_sparse(listing)
-    ]
+    sparse_listings = []
+    for i, listing in enumerate(listings):
+        source_url = _normalize_url(listing.source_url)
+        if source_url:
+            listing.source_url = source_url
+        if source_url and _is_sparse(listing):
+            sparse_listings.append((i, listing))
 
     if not sparse_listings:
         logger.info(
@@ -205,6 +260,12 @@ async def _enrich_with_details(
             # browser-use pages lack wait_for_load_state; brief
             # pause lets the page content settle before extraction.
             await asyncio.sleep(3)
+
+            current_detail_url = await _current_page_url(page)
+            if current_detail_url and current_detail_url.startswith(("http://", "https://")):
+                listing.source_url = current_detail_url
+            else:
+                listing.source_url = detail_url
 
             html_content = await page.evaluate(
                 "() => document.documentElement.outerHTML"
@@ -320,7 +381,7 @@ async def browser_scrape(
                 return BrowserScrapeResult(listings=[], search_used=False)
 
             html_content = await page.evaluate("() => document.documentElement.outerHTML")
-            page_url = page.url
+            page_url = await _current_page_url(page)
 
             listings = extract_listings_from_html(html_content, portal.name)
             listings = _fix_source_urls(listings, page_url, portal.url)
@@ -379,7 +440,7 @@ async def browser_scrape(
                 if page is None:
                     return BrowserScrapeResult(listings=[], search_used=False)
                 html_content = await page.evaluate("() => document.documentElement.outerHTML")
-                page_url = page.url
+                page_url = await _current_page_url(page)
                 listings = extract_listings_from_html(html_content, portal.name)
                 listings = _fix_source_urls(listings, page_url, portal.url)
                 listings = await _enrich_with_details(listings, browser, portal)
@@ -459,7 +520,7 @@ async def browser_scrape(
                     page = await browser.get_current_page()
                     if page is not None:
                         html = await page.evaluate("() => document.documentElement.outerHTML")
-                        page_url = page.url
+                        page_url = await _current_page_url(page)
                         listings = extract_listings_from_html(html, portal.name)
                         listings = _fix_source_urls(listings, page_url, portal.url)
 
@@ -489,7 +550,7 @@ async def browser_scrape(
                                 page = await browser.get_current_page()
                                 if page is not None:
                                     html = await page.evaluate("() => document.documentElement.outerHTML")
-                                    page_url = page.url
+                                    page_url = await _current_page_url(page)
                                     listings = extract_listings_from_html(html, portal.name)
                                     listings = _fix_source_urls(listings, page_url, portal.url)
 

@@ -11,6 +11,7 @@ import pytest
 
 from scraper.models import ExtractionResult, ProcurementListing
 from scraper.pipeline.extraction import (
+    CANADIAN_PROVINCES,
     EXTRACTION_SYSTEM_PROMPT,
     extract_listing_detail,
     extract_listings_from_html,
@@ -179,6 +180,35 @@ class TestStripHtml:
         )
 
 
+class TestCanadianProvincesSet:
+    """Sanity checks for the province whitelist used in extraction guidance."""
+
+    def test_contains_all_13_full_names(self):
+        expected_full_names = {
+            "alberta",
+            "british columbia",
+            "manitoba",
+            "new brunswick",
+            "newfoundland and labrador",
+            "nova scotia",
+            "ontario",
+            "prince edward island",
+            "quebec",
+            "saskatchewan",
+            "northwest territories",
+            "nunavut",
+            "yukon",
+        }
+        assert expected_full_names.issubset(CANADIAN_PROVINCES)
+
+    def test_contains_common_abbreviations(self):
+        expected_abbrev = {
+            "ab", "bc", "mb", "nb", "nl", "ns", "on", "pe", "pei",
+            "qc", "sk", "nt", "nwt", "nu", "yt",
+        }
+        assert expected_abbrev.issubset(CANADIAN_PROVINCES)
+
+
 # ---------------------------------------------------------------------------
 # extract_listings_from_html tests
 # ---------------------------------------------------------------------------
@@ -234,6 +264,7 @@ class TestExtractListingsFromHtml:
         assert "GSIN" in system_msg
         assert "dollar values" in system_msg
         assert "dates" in system_msg
+        assert "Province must be one of the 13 Canadian provinces/territories" in system_msg
 
     @patch("scraper.pipeline.extraction.OpenAI")
     @patch("scraper.pipeline.extraction.instructor")

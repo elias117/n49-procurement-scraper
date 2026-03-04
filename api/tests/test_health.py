@@ -17,6 +17,7 @@ def test_health_returns_200(client):
     data = response.json()
     assert data["status"] == "healthy"
     assert data["listings_count"] == 897
+    mock_conn.close.assert_called_once()
 
 
 def test_health_db_error(client):
@@ -26,3 +27,16 @@ def test_health_db_error(client):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "unhealthy"
+
+
+def test_health_closes_connection_on_query_error(client):
+    """Connection should still close if cursor/query work fails."""
+    mock_conn = MagicMock()
+    mock_conn.cursor.side_effect = Exception("query failed")
+
+    with patch("api.routers.health.get_connection", return_value=mock_conn):
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "unhealthy"
+    mock_conn.close.assert_called_once()

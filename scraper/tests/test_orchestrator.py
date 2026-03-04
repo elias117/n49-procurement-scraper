@@ -390,6 +390,7 @@ class TestProcessPortal:
         proc_listing = ProcurementListing(
             title="Browser Listing",
             source_listing_id="BL-001",
+            province="Kosovo",
         )
         mock_scrape.return_value = ([proc_listing], False)
 
@@ -397,6 +398,7 @@ class TestProcessPortal:
         def validate_side_effect(record):
             assert isinstance(record, ListingRecord)
             assert record.source_portal == "portal-gen-001"
+            assert record.province == "British Columbia"
             return record
 
         mock_validate.side_effect = validate_side_effect

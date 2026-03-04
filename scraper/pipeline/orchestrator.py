@@ -106,6 +106,8 @@ async def process_portal(
         Dict with keys: found, new, updated (and optionally "error").
     """
     run_id = start_run(conn, portal)
+    # Persist run row immediately so later rollbacks do not erase audit history.
+    conn.commit()
 
     try:
         # Step 1: Scrape
@@ -123,7 +125,12 @@ async def process_portal(
         for item in raw_listings:
             if isinstance(item, ProcurementListing):
                 listing_records.append(
-                    to_listing_record(item, portal.id, portal.language)
+                    to_listing_record(
+                        item,
+                        portal.id,
+                        portal.language,
+                        portal_province=portal.province,
+                    )
                 )
             else:
                 # Already a ListingRecord (e.g., from canadabuys)
@@ -168,12 +175,21 @@ async def process_portal(
 
         # Step 6: Audit completion
         complete_run(conn, run_id, portal, stats)
+        # Commit portal transaction so failures in later portals cannot roll it back.
+        conn.commit()
 
         return stats
 
     except Exception as e:
         conn.rollback()
-        fail_run(conn, run_id, portal, e)
+        try:
+            fail_run(conn, run_id, portal, e)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            logger.exception(
+                "Portal %s failed and audit logging also failed", portal.name
+            )
         logger.exception("Portal %s failed", portal.name)
         return {"found": 0, "new": 0, "updated": 0, "error": str(e)}
 

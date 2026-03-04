@@ -108,7 +108,8 @@ export function FilterSidebar({
 
   function parseDateInput(value: string): Date | null {
     if (!value) return null;
-    const d = new Date(value + "T00:00:00");
+    // Treat picker values as UTC dates to avoid timezone drift in API filters.
+    const d = new Date(`${value}T00:00:00Z`);
     return isNaN(d.getTime()) ? null : d;
   }
 

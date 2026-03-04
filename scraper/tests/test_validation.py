@@ -137,6 +137,35 @@ class TestValidateListing:
         result = validate_listing(listing)
         assert result.source_url is None
 
+    def test_valid_https_url_with_query_params_kept(self):
+        """HTTPS URLs with query params should remain valid."""
+        listing = _make_listing(
+            source_url="https://seao.ca/tenders/detail?id=123&lang=fr"
+        )
+        result = validate_listing(listing)
+        assert result.source_url == "https://seao.ca/tenders/detail?id=123&lang=fr"
+
+    def test_invalid_province_nullified(self):
+        """Non-Canadian province values should be nullified."""
+        listing = _make_listing(province="Albania")
+        result = validate_listing(listing)
+        assert result.province is None
+
+    def test_valid_province_abbreviation_preserved(self):
+        """Canadian province abbreviations remain valid."""
+        listing = _make_listing(province="qc")
+        result = validate_listing(listing)
+        assert result.province == "qc"
+
+    def test_common_province_abbreviations_preserved(self):
+        """Common 3-letter abbreviations should also remain valid."""
+        pei_listing = _make_listing(province="PEI")
+        nwt_listing = _make_listing(province="NWT")
+        pei_result = validate_listing(pei_listing)
+        nwt_result = validate_listing(nwt_listing)
+        assert pei_result.province == "PEI"
+        assert nwt_result.province == "NWT"
+
     def test_classification_codes_missing_keys_removed(self):
         """Entries without 'system' or 'code' keys should be removed."""
         listing = _make_listing(

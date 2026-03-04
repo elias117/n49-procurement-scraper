@@ -10,13 +10,33 @@ import os
 import pytest
 import httpx
 
-# Skip entire file if no DATABASE_URL (CI environments without DB)
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("DATABASE_URL"),
-    reason="Requires DATABASE_URL for live database tests",
-)
-
 API_BASE = os.environ.get("API_BASE_URL", "http://localhost:8000")
+
+
+def _api_reachable() -> bool:
+    """Return True when the benchmark target API is reachable."""
+    try:
+        with httpx.Client(base_url=API_BASE, timeout=2) as client:
+            response = client.get("/search", params={"q": "", "page_size": 1})
+            if response.status_code != 200:
+                return False
+            payload = response.json()
+            return isinstance(payload, dict) and "results" in payload
+    except Exception:
+        return False
+
+
+# Skip entire file unless both live DB config and running API are available.
+pytestmark = [
+    pytest.mark.skipif(
+        not os.environ.get("DATABASE_URL"),
+        reason="Requires DATABASE_URL for live database tests",
+    ),
+    pytest.mark.skipif(
+        not _api_reachable(),
+        reason=f"Requires running API at {API_BASE}",
+    ),
+]
 
 
 @pytest.fixture(scope="module")

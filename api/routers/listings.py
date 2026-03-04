@@ -30,7 +30,7 @@ def _serialize_row(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("/listings/{listing_id}")
-def get_listing(listing_id: str):
+def get_listing(listing_id: uuid.UUID):
     """Return full detail for a single listing by ID."""
     with db_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -51,7 +51,7 @@ def get_listing(listing_id: str):
                 JOIN portals p ON l.source_portal = p.id
                 WHERE l.id = %s
                 """,
-                (listing_id,),
+                (str(listing_id),),
             )
             row = cur.fetchone()
 

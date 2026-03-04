@@ -76,6 +76,43 @@ def _resolve_url(source_url: str, portal_url: str) -> str:
     return urljoin(portal_url, source_url)
 
 
+def _normalize_url(value) -> str | None:
+    """Normalize an extracted URL-like value to a non-empty string."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return str(value)
+
+
+def _fix_source_urls(
+    listings: list[ProcurementListing],
+    page_url: str,
+    portal_url: str,
+) -> list[ProcurementListing]:
+    """
+    Resolve relative listing URLs and replace cross-domain links with page URL.
+    """
+    portal_domain = urlparse(portal_url).netloc.lower()
+    fallback_url = _normalize_url(page_url) or portal_url
+
+    for listing in listings:
+        source_url = _normalize_url(listing.source_url)
+        if not source_url:
+            listing.source_url = fallback_url
+            continue
+
+        resolved_url = _resolve_url(source_url, portal_url)
+        listing_domain = urlparse(resolved_url).netloc.lower()
+        if listing_domain and listing_domain != portal_domain:
+            listing.source_url = fallback_url
+        else:
+            listing.source_url = resolved_url
+
+    return listings
+
+
 def _merge_detail(
     original: ProcurementListing, detail: ProcurementListing
 ) -> ProcurementListing:
@@ -305,6 +342,7 @@ async def bidsandtenders_scrape(
     )
 
     browser = None
+    p = None
     try:
         p = await async_playwright().start()
 
@@ -331,6 +369,7 @@ async def bidsandtenders_scrape(
         if search_input is None:
             # Fall back to original behavior: scrape full page
             html_content = await page.content()
+            page_url = page.url
 
             logger.info(
                 "Page loaded for '%s', HTML length: %d",
@@ -339,6 +378,7 @@ async def bidsandtenders_scrape(
             )
 
             listings = extract_listings_from_html(html_content, portal.name)
+            listings = _fix_source_urls(listings, page_url, portal.url)
 
             # Enrich sparse listings by visiting detail pages
             listings = await _enrich_with_details(listings, page, portal)
@@ -379,6 +419,7 @@ async def bidsandtenders_scrape(
                 or_query = " OR ".join(batch)
                 html = await _execute_search(page, search_input, or_query)
                 listings = extract_listings_from_html(html, portal.name)
+                listings = _fix_source_urls(listings, page.url, portal.url)
 
                 if listings:
                     all_listings.extend(listings)
@@ -409,6 +450,7 @@ async def bidsandtenders_scrape(
                     break
                 html = await _execute_search(page, search_input, keyword)
                 listings = extract_listings_from_html(html, portal.name)
+                listings = _fix_source_urls(listings, page.url, portal.url)
                 all_listings.extend(listings)
 
             # Reset after each category
@@ -448,7 +490,8 @@ async def bidsandtenders_scrape(
                     "Failed to close browser for portal '%s'",
                     portal.name,
                 )
-        try:
-            await p.stop()
-        except Exception:
-            pass
+        if p is not None:
+            try:
+                await p.stop()
+            except Exception:
+                pass

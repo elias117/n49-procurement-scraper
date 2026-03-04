@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from scraper.models import PortalRecord, ProcurementListing
+from scraper.models import ExtractionResult, PortalRecord, ProcurementListing
 
 
 # ---------------------------------------------------------------------------
@@ -871,6 +871,22 @@ class TestResolveUrl:
         assert result == "https://seao.ca/listings/detail/123"
 
 
+class TestSameDomain:
+    def test_www_and_apex_domains_match(self):
+        from scraper.pipeline.browser_scraper import _is_same_domain
+        assert _is_same_domain(
+            "https://seao.ca/detail/123",
+            "https://www.seao.ca",
+        ) is True
+
+    def test_unrelated_domains_do_not_match(self):
+        from scraper.pipeline.browser_scraper import _is_same_domain
+        assert _is_same_domain(
+            "https://globaltenders.com/a",
+            "https://www.seao.ca",
+        ) is False
+
+
 # ---------------------------------------------------------------------------
 # TestFixSourceUrls
 # ---------------------------------------------------------------------------
@@ -908,6 +924,38 @@ class TestFixSourceUrls:
         )
         result = _fix_source_urls([listing], "https://www.seao.ca/results", "https://www.seao.ca/")
         assert result[0].source_url == "https://www.seao.ca/results"
+
+    def test_subdomain_variation_kept_with_query_params(self):
+        from scraper.pipeline.browser_scraper import _fix_source_urls
+        listing = ProcurementListing(
+            title="Test",
+            source_url="https://seao.ca/detail?id=123&lang=fr",
+        )
+        result = _fix_source_urls([listing], "https://www.seao.ca/results", "https://www.seao.ca/")
+        assert result[0].source_url == "https://seao.ca/detail?id=123&lang=fr"
+
+    def test_non_http_page_url_falls_back_to_portal_url(self):
+        from scraper.pipeline.browser_scraper import _fix_source_urls
+        listing = ProcurementListing(title="Test", source_url=None)
+        result = _fix_source_urls([listing], "about:blank", "https://www.seao.ca/")
+        assert result[0].source_url == "https://www.seao.ca/"
+
+
+class TestCurrentPageUrl:
+    def test_uses_page_url_when_http(self):
+        from scraper.pipeline.browser_scraper import _current_page_url
+        mock_page = AsyncMock()
+        mock_page.url = "https://www.seao.ca/results"
+        result = asyncio.get_event_loop().run_until_complete(_current_page_url(mock_page))
+        assert result == "https://www.seao.ca/results"
+
+    def test_ignores_non_http_page_url_and_uses_evaluated_url(self):
+        from scraper.pipeline.browser_scraper import _current_page_url
+        mock_page = AsyncMock()
+        mock_page.url = "about:blank"
+        mock_page.evaluate.return_value = "https://www.seao.ca/detail/123?lang=fr"
+        result = asyncio.get_event_loop().run_until_complete(_current_page_url(mock_page))
+        assert result == "https://www.seao.ca/detail/123?lang=fr"
 
 
 # ---------------------------------------------------------------------------
@@ -1159,6 +1207,42 @@ class TestEnrichWithDetails:
         assert result[0].title == "Translation Services"
         mock_detail.assert_not_called()
 
+    @patch("scraper.pipeline.browser_scraper.extract_listing_detail")
+    def test_captures_current_detail_page_url(
+        self, mock_detail, mock_browser_use_module
+    ):
+        from scraper.pipeline.browser_scraper import _enrich_with_details
+
+        sparse_listing = ProcurementListing(
+            title="Translation Services",
+            source_url="https://seao.ca/detail/123",
+        )
+        mock_detail.return_value = ProcurementListing(
+            title="Translation Services",
+            description="Detailed text from page",
+            closing_date="2026-04-15",
+        )
+
+        mock_page = AsyncMock()
+        mock_page.url = "https://seao.ca/detail/123?lang=fr"
+        mock_page.evaluate.return_value = "<html>detail page</html>"
+
+        mock_browser_inst = AsyncMock()
+        mock_browser_inst.get_current_page.return_value = mock_page
+
+        portal = PortalRecord(
+            id="portal-001", name="SEAO", url="https://seao.ca/",
+            level="provincial", province="Quebec", language="fr",
+            requires_login=True, enabled=True,
+        )
+
+        result = asyncio.get_event_loop().run_until_complete(
+            _enrich_with_details([sparse_listing], mock_browser_inst, portal)
+        )
+
+        assert len(result) == 1
+        assert result[0].source_url == "https://seao.ca/detail/123?lang=fr"
+
 
 # ---------------------------------------------------------------------------
 # TestStripHtmlPreservesUrls
@@ -1185,3 +1269,56 @@ class TestStripHtmlPreservesUrls:
         result = strip_html(html)
         assert "/listings/detail?id=456" in result
         assert "IT Consulting" in result
+
+    def test_no_results_english_returns_empty_text(self):
+        from scraper.pipeline.extraction import strip_html
+        html = "<html><body>Your search did not match any results.</body></html>"
+        result = strip_html(html)
+        assert result == ""
+
+    def test_no_results_french_returns_empty_text(self):
+        from scraper.pipeline.extraction import strip_html
+        html = "<html><body>Aucun resultat trouve.</body></html>"
+        result = strip_html(html)
+        assert result == ""
+
+
+class TestTitleFiltering:
+    def test_filters_boolean_or_query_titles(self):
+        from scraper.pipeline.extraction import _should_filter_title
+        assert _should_filter_title("translation OR interpreter") is True
+
+    def test_filters_search_results_prefix(self):
+        from scraper.pipeline.extraction import _should_filter_title
+        assert _should_filter_title("Search Results For translation services") is True
+
+    def test_filters_very_long_titles(self):
+        from scraper.pipeline.extraction import _should_filter_title
+        assert _should_filter_title("A" * 301) is True
+
+    def test_keeps_normal_title(self):
+        from scraper.pipeline.extraction import _should_filter_title
+        assert _should_filter_title("Translation and Interpretation Services") is False
+
+    @patch("scraper.pipeline.extraction._call_instructor_extract")
+    @patch("scraper.pipeline.extraction.instructor.from_openai")
+    def test_extract_listings_from_html_applies_title_filters(
+        self, mock_from_openai, mock_call_extract
+    ):
+        from scraper.pipeline.extraction import extract_listings_from_html
+
+        mock_from_openai.return_value = MagicMock()
+        mock_call_extract.return_value = ExtractionResult(
+            listings=[
+                ProcurementListing(title="translation OR interpreter"),
+                ProcurementListing(title="Search results for translation"),
+                ProcurementListing(title="A" * 301),
+                ProcurementListing(title="Valid Listing Title"),
+            ]
+        )
+
+        html = "<html><body><p>" + ("x" * 200) + "</p></body></html>"
+        results = extract_listings_from_html(html, "SEAO")
+
+        assert len(results) == 1
+        assert results[0].title == "Valid Listing Title"

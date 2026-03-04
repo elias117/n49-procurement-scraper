@@ -1,7 +1,7 @@
 """Search response models."""
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ListingResult(BaseModel):
@@ -22,14 +22,14 @@ class FacetValue(BaseModel):
 
 
 class FacetCounts(BaseModel):
-    provinces: list[FacetValue] = []
-    portals: list[FacetValue] = []
+    provinces: list[FacetValue] = Field(default_factory=list)
+    portals: list[FacetValue] = Field(default_factory=list)
 
 
 class SearchResponse(BaseModel):
-    results: list[ListingResult] = []
+    results: list[ListingResult] = Field(default_factory=list)
     total_count: int = 0
     page: int = 1
     page_size: int = 25
     total_pages: int = 0
-    facets: FacetCounts = FacetCounts()
+    facets: FacetCounts = Field(default_factory=FacetCounts)
