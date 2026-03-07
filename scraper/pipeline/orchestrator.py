@@ -27,6 +27,7 @@ from scraper.models import PortalRecord, ProcurementListing, to_listing_record
 from scraper.pipeline.audit import start_run, complete_run, fail_run
 from scraper.pipeline.canadabuys import canadabuys_ingest
 from scraper.pipeline.bidsandtenders import bidsandtenders_scrape
+from scraper.pipeline.seao import seao_scrape
 from scraper.pipeline.browser_scraper import browser_scrape, BrowserScrapeResult
 from scraper.pipeline.validation import validate_and_score
 from scraper.pipeline.embeddings import generate_embeddings
@@ -42,12 +43,14 @@ def classify_portal(portal: PortalRecord) -> str:
         portal: The portal to classify.
 
     Returns:
-        One of: "canadabuys", "bidsandtenders", "browser".
+        One of: "canadabuys", "bidsandtenders", "seao", "browser".
     """
     if portal.name == "CanadaBuys":
         return "canadabuys"
     if "bidsandtenders" in portal.url:
         return "bidsandtenders"
+    if "seao" in portal.url:
+        return "seao"
     return "browser"
 
 
@@ -78,6 +81,9 @@ async def scrape_portal(
             portal, keywords_by_category=keywords_by_category
         )
         return result.listings, result.search_used
+    elif portal_type == "seao":
+        listings = await seao_scrape(portal, keywords_by_category=keywords_by_category)
+        return listings, False
     else:
         result = await browser_scrape(
             portal, keywords_by_category=keywords_by_category

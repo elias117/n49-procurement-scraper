@@ -73,6 +73,20 @@ def generic_portal():
 
 
 @pytest.fixture
+def seao_portal():
+    return PortalRecord(
+        id="portal-seao-001",
+        name="SEAO Quebec",
+        url="https://seao.gouv.qc.ca/avis-resultat-recherche",
+        level="provincial",
+        province="Quebec",
+        language="fr",
+        requires_login=False,
+        enabled=True,
+    )
+
+
+@pytest.fixture
 def sample_listing_record():
     return ListingRecord(
         title="Test Listing",
@@ -110,6 +124,10 @@ class TestClassifyPortal:
     def test_classify_bidsandtenders(self, bidsandtenders_portal):
         """BidsAndTenders URL returns 'bidsandtenders'."""
         assert classify_portal(bidsandtenders_portal) == "bidsandtenders"
+
+    def test_classify_seao(self, seao_portal):
+        """SEAO URL returns 'seao'."""
+        assert classify_portal(seao_portal) == "seao"
 
     def test_classify_other(self, generic_portal):
         """Non-CanadaBuys, non-BidsAndTenders portal returns 'browser'."""
@@ -186,6 +204,28 @@ class TestScrapePortal:
         mock_scrape.assert_called_once_with(
             bidsandtenders_portal, keywords_by_category=kw_by_cat
         )
+
+    @patch(
+        "scraper.pipeline.orchestrator.seao_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_seao(self, mock_scrape, seao_portal):
+        """SEAO portals dispatch to seao_scrape."""
+        mock_listing = ProcurementListing(
+            title="SEAO Listing",
+            source_listing_id="SEAO-001",
+        )
+        mock_scrape.return_value = [mock_listing]
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(seao_portal)
+        )
+
+        mock_scrape.assert_called_once_with(
+            seao_portal, keywords_by_category=None
+        )
+        assert listings == [mock_listing]
+        assert search_used is False
 
     @patch(
         "scraper.pipeline.orchestrator.bidsandtenders_scrape",
