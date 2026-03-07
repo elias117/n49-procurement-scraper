@@ -28,6 +28,13 @@ from scraper.pipeline.audit import start_run, complete_run, fail_run
 from scraper.pipeline.canadabuys import canadabuys_ingest
 from scraper.pipeline.bidsandtenders import bidsandtenders_scrape
 from scraper.pipeline.seao import seao_scrape
+from scraper.pipeline.merx import merx_scrape
+from scraper.pipeline.tier3.dispatcher import classify_tier3_portal, tier3_scrape
+from scraper.pipeline.ariba import ariba_scrape
+from scraper.pipeline.apc import apc_scrape
+from scraper.pipeline.sasktenders import sasktenders_scrape
+from scraper.pipeline.bcbid import bcbid_scrape
+from scraper.pipeline.nbon import nbon_scrape
 from scraper.pipeline.browser_scraper import browser_scrape, BrowserScrapeResult
 from scraper.pipeline.validation import validate_and_score
 from scraper.pipeline.embeddings import generate_embeddings
@@ -43,14 +50,39 @@ def classify_portal(portal: PortalRecord) -> str:
         portal: The portal to classify.
 
     Returns:
-        One of: "canadabuys", "bidsandtenders", "seao", "browser".
+        One of:
+        "canadabuys", "bidsandtenders", "seao", "merx", "tier3",
+        "ariba", "apc", "sasktenders", "bcbid", "nbon", "browser".
     """
+    url = portal.url.lower()
+
     if portal.name == "CanadaBuys":
         return "canadabuys"
-    if "bidsandtenders" in portal.url:
+    if classify_tier3_portal(portal) is not None:
+        return "tier3"
+    if "bidsandtenders" in url:
         return "bidsandtenders"
-    if "seao" in portal.url:
+    if "seao" in url:
         return "seao"
+    if "merx.com" in url:
+        return "merx"
+
+    if (
+        ("edmonton.ca" in url and "bid-procurement-opportunities" in url)
+        or "procurement.novascotia.ca" in url
+        or ("toronto.ca" in url and "toronto-bids-portal" in url)
+    ):
+        return "ariba"
+
+    if "vendor.purchasingconnection.ca" in url:
+        return "apc"
+    if "sasktenders.ca" in url:
+        return "sasktenders"
+    if "bcbid.gov.bc.ca" in url:
+        return "bcbid"
+    if "nbon-rpanb.gnb.ca" in url:
+        return "nbon"
+
     return "browser"
 
 
@@ -83,6 +115,27 @@ async def scrape_portal(
         return result.listings, result.search_used
     elif portal_type == "seao":
         listings = await seao_scrape(portal, keywords_by_category=keywords_by_category)
+        return listings, False
+    elif portal_type == "merx":
+        listings = await merx_scrape(portal)
+        return listings, False
+    elif portal_type == "tier3":
+        listings = await tier3_scrape(portal)
+        return listings, False
+    elif portal_type == "ariba":
+        listings = await ariba_scrape(portal)
+        return listings, False
+    elif portal_type == "apc":
+        listings = await apc_scrape(portal)
+        return listings, False
+    elif portal_type == "sasktenders":
+        listings = await sasktenders_scrape(portal)
+        return listings, False
+    elif portal_type == "bcbid":
+        listings = await bcbid_scrape(portal)
+        return listings, False
+    elif portal_type == "nbon":
+        listings = await nbon_scrape(portal)
         return listings, False
     else:
         result = await browser_scrape(
