@@ -13,7 +13,7 @@ Milestone: v1.5 — Keyword-Filtered Scraping
 Phase: 8 (complete)
 Current Plan: 8-02 (done)
 Status: 8-02 complete (4 tasks, 3 commits), 25 orchestrator tests passing, 145 scraper tests passing
-Last activity: 2026-02-26 — QT-007: Enabled 5 MERX portals, scraped MERX federal (4 new listings), fixed browser-use page.evaluate bug
+Last activity: 2026-03-07 — QT-011: Phase 1 Task #7 (Portal Error Analysis) complete; Firecrawl pilot run across 4 portals with credit usage captured
 
 ## Milestone History
 
@@ -49,6 +49,7 @@ Last activity: 2026-02-26 — QT-007: Enabled 5 MERX portals, scraped MERX feder
 - BidsAndTenders: ~29 portals share identical UI, use Playwright search box
 - Browser-use: ~13 enabled portals, modify agent prompt to search for keywords
 - Purge: DELETE existing listings not matching any keyword
+- QT-011 (2026-03-07): Firecrawl pilot run on 4 portals (CanadaBuys, Halifax BidsAndTenders, MERX Ottawa, SEAO); all returned 0 listings with agent status still processing at timeout; credit check observed no delta (before -21699, after -21699)
 
 ### Decisions
 - Module-level playwright import with try/except for testability
@@ -78,6 +79,8 @@ Last activity: 2026-02-26 — QT-007: Enabled 5 MERX portals, scraped MERX feder
 | QT-006 | 2026-02-26 | 6f58c4c | Proximity-based keyword matching — purged 156 more false positives (163→7 listings) |
 | QT-007 | 2026-02-26 | 7508f2f, d634eaf | Enable 5 MERX portals + scrape federal (4 listings); fix page.evaluate() for browser-use 0.11+ |
 | QT-009 | 2026-02-26 | (deploy) | Enable all 63 portals in production, sync migration files 006/008 to EC2, verify all containers running |
+| QT-010 | 2026-03-03 | c9f2172 | Full scraper job on EC2 — deployed 7 commits, scraped 62/63 portals, 36 new + 11 updated listings (61 total in DB) |
+| QT-011 | 2026-03-07 | e7db0e2, 20bc467 | Phase 1 Task #7 portal error analysis complete; Firecrawl agent pilot run on 4 portals with credit usage telemetry captured |
 
 ## Session Continuity
 
