@@ -1,40 +1,47 @@
 """
 BidsAndTenders platform scraper.
 
-Handles ~20 procurement portals that share the BidsAndTenders platform.
-All share an identical structure with the pattern: {base_url}/Module/Tenders/en.
+Scrapes BidsAndTenders portals directly from the standard listing URL:
+{base_url}/Module/Tenders/en
 
-Uses Playwright directly (not browser-use Agent) since the URL pattern is
-known and no AI navigation is needed. headless=False under Xvfb avoids 403s.
-
-Supports keyword search via the portal's search box: builds OR queries from
-random keyword batches per category, with individual-keyword fallback when
-OR queries return zero results.
+Uses Playwright to load the listing page, then pulls all active/open tenders
+via the same paginated data source used by the portal UI. No keyword search is
+performed.
 """
 
 from __future__ import annotations
 
 import logging
+import re
+from datetime import datetime, timezone
 from typing import NamedTuple
 from urllib.parse import urljoin, urlparse
+
+from bs4 import BeautifulSoup
 
 from scraper import config
 from scraper.models import PortalRecord, ProcurementListing
 from scraper.pipeline.extraction import extract_listing_detail, extract_listings_from_html
-from scraper.pipeline.keywords import select_keyword_batch, deduplicate_listings
+from scraper.pipeline.keywords import deduplicate_listings
 
 try:
-    from playwright.async_api import async_playwright
+    from playwright.async_api import BrowserContext, Page, async_playwright
 except ImportError:
     async_playwright = None  # type: ignore[assignment]
+    BrowserContext = object  # type: ignore[assignment,misc]
+    Page = object  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
 
 class BidsAndTendersResult(NamedTuple):
-    """Result from a BidsAndTenders scrape with search metadata."""
+    """Result from a BidsAndTenders scrape."""
+
     listings: list[ProcurementListing]
-    search_used: bool  # True if keyword search was performed, False if fell back to full scrape
+    search_used: bool  # Always False: direct full listing scrape.
+
+
+_BT_DATE_RE = re.compile(r"/Date\((\d+)\)/")
 
 
 def _is_sparse(listing: ProcurementListing) -> bool:
@@ -133,7 +140,6 @@ def _merge_detail(
     for field_name in ProcurementListing.model_fields:
         orig_val = getattr(original, field_name)
         detail_val = getattr(detail, field_name)
-        # Keep original title always; for other fields, prefer detail if original is None
         if field_name == "title":
             merged_data[field_name] = orig_val
         elif orig_val is None and detail_val is not None:
@@ -145,7 +151,7 @@ def _merge_detail(
 
 async def _enrich_with_details(
     listings: list[ProcurementListing],
-    page,
+    page: Page,
     portal: PortalRecord,
 ) -> list[ProcurementListing]:
     """
@@ -229,76 +235,215 @@ async def _enrich_with_details(
     return enriched
 
 
-async def _find_search_input(page):
+def _parse_bt_date(value: object) -> str | None:
     """
-    Try to find a visible search input on the page.
+    Parse a BidsAndTenders date value to ISO date (YYYY-MM-DD).
 
-    Tries selectors in order: searchbox role, "Search" placeholder, first text input.
-    Returns the first visible locator, or None if none found.
+    Supports:
+    - /Date(1773252000000)/
+    - ISO date/time strings
+    - Common date display formats from listing pages
     """
-    # Try searchbox role
-    try:
-        locator = page.get_by_role("searchbox")
-        if await locator.is_visible(timeout=3000):
-            return locator
-    except Exception:
-        pass
+    if value is None:
+        return None
 
-    # Try placeholder
-    try:
-        locator = page.get_by_placeholder("Search")
-        if await locator.is_visible(timeout=3000):
-            return locator
-    except Exception:
-        pass
+    raw = str(value).strip()
+    if not raw:
+        return None
 
-    # Try first text input
-    try:
-        locator = page.locator("input[type='text']").first
-        if await locator.is_visible(timeout=3000):
-            return locator
-    except Exception:
-        pass
+    match = _BT_DATE_RE.search(raw)
+    if match:
+        try:
+            dt = datetime.fromtimestamp(int(match.group(1)) / 1000, tz=timezone.utc)
+            return dt.date().isoformat()
+        except Exception:
+            return None
 
-    logger.warning("No search input found on the page")
+    # Trim timezone suffixes in parentheses from display strings.
+    raw = re.sub(r"\s*\([^)]*\)$", "", raw)
+
+    for fmt in (
+        "%Y-%m-%d",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S.%f",
+        "%b %d, %Y",
+        "%B %d, %Y",
+        "%m/%d/%Y",
+        "%d/%m/%Y",
+        "%Y/%m/%d",
+    ):
+        try:
+            return datetime.strptime(raw, fmt).date().isoformat()
+        except ValueError:
+            continue
+
+    # Handle strings like "Mar 10, 2026 2:00 PM".
+    for fmt in ("%b %d, %Y %I:%M %p", "%B %d, %Y %I:%M %p"):
+        try:
+            return datetime.strptime(raw, fmt).date().isoformat()
+        except ValueError:
+            continue
+
     return None
 
 
-async def _execute_search(page, search_input, query: str) -> str:
+def _html_to_text(value: object) -> str | None:
+    """Convert HTML snippets to clean plain text."""
+    if value is None:
+        return None
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    soup = BeautifulSoup(raw, "html.parser")
+    text = soup.get_text(" ", strip=True)
+    return text or None
+
+
+async def _extract_search_metadata(page: Page) -> tuple[str, str, str] | None:
     """
-    Execute a search query using the provided search input locator.
+    Extract hidden values required for BidsAndTenders search endpoint calls.
 
-    Clears existing text, fills with query, presses Enter, waits for results.
-    Returns the page HTML content after the search completes.
-    """
-    await search_input.fill("")
-    await search_input.fill(query)
-    await search_input.press("Enter")
-    await page.wait_for_load_state("networkidle")
-    await page.wait_for_timeout(3000)
-    return await page.content()
-
-
-async def _reset_search(page, listing_url: str) -> None:
-    """
-    Reset the search state on the page.
-
-    Tries to click a "Reset" button if visible. Falls back to navigating
-    back to the listing URL.
+    Returns (home_path, node_id, anti_forgery_token) or None if unavailable.
     """
     try:
-        reset_btn = page.get_by_text("Reset", exact=False)
-        if await reset_btn.is_visible(timeout=2000):
-            await reset_btn.click()
-            await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(2000)
-            return
+        home_path = await page.locator("#Home").input_value()
+        node_id = await page.locator("#NodeId").input_value()
+        token = await page.locator(
+            "#bidDetailAntiForgery input[name='__RequestVerificationToken']"
+        ).input_value()
     except Exception:
-        pass
+        logger.warning("Failed to read BidsAndTenders listing metadata from page")
+        return None
 
-    # Fallback: navigate back to listing URL
-    await page.goto(listing_url, wait_until="networkidle", timeout=30000)
-    await page.wait_for_timeout(2000)
+    home_path = (home_path or "").strip()
+    node_id = (node_id or "").strip()
+    token = (token or "").strip()
+
+    if not home_path or not node_id or not token:
+        return None
+
+    return home_path, node_id, token
+
+
+async def _fetch_open_tenders(
+    context: BrowserContext,
+    listing_url: str,
+    base_url: str,
+    home_path: str,
+    node_id: str,
+    token: str,
+    page_size: int = 100,
+    max_pages: int = 100,
+) -> list[dict]:
+    """
+    Fetch all open tenders from the BidsAndTenders JSON endpoint.
+
+    This endpoint backs the listing page repeater and supports pagination.
+    """
+    endpoint = f"{base_url}{home_path}/Tender/Search/{node_id}"
+    all_rows: list[dict] = []
+    start = 0
+    total_items: int | None = None
+
+    for _ in range(max_pages):
+        params = {
+            "status": "Open",
+            "limit": str(page_size),
+            "start": str(start),
+            "dir": "ASC",
+            "from": "",
+            "to": "",
+            "sort": "DateClosing ASC,Id",
+        }
+
+        response = await context.request.post(
+            endpoint,
+            params=params,
+            headers={
+                "Referer": listing_url,
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            form={
+                "keywords": "",
+                "__RequestVerificationToken": token,
+            },
+            timeout=30000,
+        )
+
+        if not response.ok:
+            logger.warning(
+                "BidsAndTenders endpoint request failed: %s status=%s",
+                endpoint,
+                response.status,
+            )
+            break
+
+        try:
+            payload = await response.json()
+        except Exception:
+            logger.exception(
+                "Failed parsing BidsAndTenders JSON payload from %s",
+                endpoint,
+            )
+            break
+
+        if not payload.get("success"):
+            logger.warning(
+                "BidsAndTenders endpoint returned success=false for %s",
+                endpoint,
+            )
+            break
+
+        rows = payload.get("data") or []
+        if not isinstance(rows, list):
+            logger.warning("Unexpected BidsAndTenders payload shape for %s", endpoint)
+            break
+
+        if total_items is None:
+            try:
+                total_items = int(payload.get("total") or 0)
+            except (TypeError, ValueError):
+                total_items = 0
+
+        all_rows.extend(rows)
+
+        if not rows:
+            break
+
+        start += len(rows)
+
+        if total_items and start >= total_items:
+            break
+
+        # Safety break if API does not return enough metadata.
+        if len(rows) < page_size and (not total_items or len(all_rows) >= total_items):
+            break
+
+    return all_rows
+
+
+def _row_to_listing(row: dict, base_url: str, home_path: str) -> ProcurementListing | None:
+    """Map a BidsAndTenders search row dict into ProcurementListing."""
+    title = str(row.get("Title") or "").strip()
+    if not title:
+        return None
+
+    source_listing_id = str(row.get("Id") or "").strip() or None
+    detail_url = None
+    if source_listing_id:
+        detail_url = urljoin(base_url, f"{home_path}/Tender/Detail/{source_listing_id}")
+
+    return ProcurementListing(
+        title=title,
+        description=_html_to_text(row.get("Description")),
+        source_url=detail_url,
+        source_listing_id=source_listing_id,
+        status=(str(row.get("Status")).strip() or None) if row.get("Status") else None,
+        posting_date=_parse_bt_date(row.get("DateAvailable") or row.get("DateAvailableDisplay")),
+        closing_date=_parse_bt_date(row.get("DateClosing") or row.get("DateClosingDisplay")),
+    )
 
 
 async def bidsandtenders_scrape(
@@ -306,23 +451,21 @@ async def bidsandtenders_scrape(
     keywords_by_category: dict[str, dict[str, list[str]]] | None = None,
 ) -> BidsAndTendersResult:
     """
-    Scrape a BidsAndTenders portal for procurement listings.
+    Scrape all active/open listings from a BidsAndTenders portal.
 
-    All BidsAndTenders portals share the same structure. The tender listing
-    page is always at {base_url}/Module/Tenders/en.
-
-    When keywords_by_category is provided and a search box is found,
-    performs keyword searches (OR queries with individual fallback) and
-    returns search_used=True. Otherwise falls back to full page scrape
-    with search_used=False.
+    Keyword filtering/search is intentionally not used. This scraper pulls all
+    open listings from the portal's standard listing datasource and paginates
+    through all result pages.
 
     Args:
         portal: The portal record with URL and metadata.
-        keywords_by_category: Optional category->language->keywords dict.
+        keywords_by_category: Unused (kept for backward-compatible signature).
 
     Returns:
-        BidsAndTendersResult with listings and search_used flag.
+        BidsAndTendersResult with listings and search_used=False.
     """
+    del keywords_by_category  # Kept for backward compatibility; not used.
+
     if async_playwright is None:
         logger.error(
             "playwright not installed. "
@@ -330,13 +473,12 @@ async def bidsandtenders_scrape(
         )
         return BidsAndTendersResult(listings=[], search_used=False)
 
-    # Construct the standard tender listing URL
     parsed = urlparse(portal.url)
     base_url = f"{parsed.scheme}://{parsed.netloc}"
     listing_url = f"{base_url}/Module/Tenders/en"
 
     logger.info(
-        "Starting BidsAndTenders scrape for '%s' at %s",
+        "Starting BidsAndTenders direct listing scrape for '%s' at %s",
         portal.name,
         listing_url,
     )
@@ -346,8 +488,6 @@ async def bidsandtenders_scrape(
     try:
         p = await async_playwright().start()
 
-        # headless=False is REQUIRED -- POC confirmed headless=True gets 403-blocked
-        # Runs under Xvfb in Docker for virtual display
         browser = await p.chromium.launch(headless=config.BROWSER_HEADLESS)
         context = await browser.new_context(
             user_agent=(
@@ -357,121 +497,45 @@ async def bidsandtenders_scrape(
         )
         page = await context.new_page()
 
-        # Navigate and wait for network to settle (AJAX table load)
         await page.goto(listing_url, wait_until="networkidle", timeout=30000)
+        await page.wait_for_timeout(4000)
 
-        # Extra wait for AJAX content that loads after networkidle
-        await page.wait_for_timeout(5000)
+        listings: list[ProcurementListing] = []
 
-        # Determine if we can use keyword search
-        search_input = await _find_search_input(page) if keywords_by_category else None
+        metadata = await _extract_search_metadata(page)
+        if metadata is not None:
+            home_path, node_id, token = metadata
+            rows = await _fetch_open_tenders(
+                context=context,
+                listing_url=listing_url,
+                base_url=base_url,
+                home_path=home_path,
+                node_id=node_id,
+                token=token,
+            )
 
-        if search_input is None:
-            # Fall back to original behavior: scrape full page
+            for row in rows:
+                listing = _row_to_listing(row, base_url, home_path)
+                if listing is not None:
+                    listings.append(listing)
+
+            listings = deduplicate_listings(listings)
+
+        # Safety fallback: extract from loaded listing HTML if endpoint failed.
+        if not listings:
             html_content = await page.content()
-            page_url = page.url
-
-            logger.info(
-                "Page loaded for '%s', HTML length: %d",
-                portal.name,
-                len(html_content),
-            )
-
             listings = extract_listings_from_html(html_content, portal.name)
-            listings = _fix_source_urls(listings, page_url, portal.url)
 
-            # Enrich sparse listings by visiting detail pages
-            listings = await _enrich_with_details(listings, page, portal)
-
-            logger.info(
-                "BidsAndTenders scrape complete for '%s': %d listings found (full scrape)",
-                portal.name,
-                len(listings),
-            )
-
-            return BidsAndTendersResult(listings=listings, search_used=False)
-
-        # --- Keyword search path ---
-
-        # Try to set results limit to 100
-        try:
-            limit_option = page.get_by_text("100")
-            if await limit_option.is_visible(timeout=2000):
-                await limit_option.click()
-                await page.wait_for_load_state("networkidle")
-                await page.wait_for_timeout(2000)
-                # Re-find search input after page reload
-                search_input = await _find_search_input(page)
-        except Exception:
-            pass  # Continue with default limit
-
-        all_listings: list[ProcurementListing] = []
-        or_supported = True
-
-        for category_name, category_keywords in keywords_by_category.items():
-            batch = select_keyword_batch(category_keywords)
-
-            if not batch:
-                continue
-
-            if or_supported:
-                # Try OR query
-                or_query = " OR ".join(batch)
-                html = await _execute_search(page, search_input, or_query)
-                listings = extract_listings_from_html(html, portal.name)
-                listings = _fix_source_urls(listings, page.url, portal.url)
-
-                if listings:
-                    all_listings.extend(listings)
-                    logger.info(
-                        "Category '%s' OR query returned %d listings",
-                        category_name,
-                        len(listings),
-                    )
-                    await _reset_search(page, listing_url)
-                    # Re-find search input after reset
-                    search_input = await _find_search_input(page)
-                    continue
-                else:
-                    # OR not supported, fall through to individual
-                    or_supported = False
-                    logger.info(
-                        "OR query returned 0 results for category '%s', "
-                        "falling back to individual keyword searches",
-                        category_name,
-                    )
-
-            # Individual keyword fallback
-            for keyword in batch:
-                await _reset_search(page, listing_url)
-                # Re-find search input after reset
-                search_input = await _find_search_input(page)
-                if search_input is None:
-                    break
-                html = await _execute_search(page, search_input, keyword)
-                listings = extract_listings_from_html(html, portal.name)
-                listings = _fix_source_urls(listings, page.url, portal.url)
-                all_listings.extend(listings)
-
-            # Reset after each category
-            await _reset_search(page, listing_url)
-            search_input = await _find_search_input(page)
-
-        # Deduplicate across all categories
-        deduplicated = deduplicate_listings(all_listings)
-
-        # Enrich sparse listings by visiting detail pages
-        deduplicated = await _enrich_with_details(deduplicated, page, portal)
+        listings = _fix_source_urls(listings, page.url, portal.url)
+        listings = await _enrich_with_details(listings, page, portal)
 
         logger.info(
-            "BidsAndTenders keyword search complete for '%s': "
-            "%d total, %d after dedup, enrichment applied",
+            "BidsAndTenders scrape complete for '%s': %d listings found",
             portal.name,
-            len(all_listings),
-            len(deduplicated),
+            len(listings),
         )
 
-        return BidsAndTendersResult(listings=deduplicated, search_used=True)
+        return BidsAndTendersResult(listings=listings, search_used=False)
 
     except Exception:
         logger.exception(
