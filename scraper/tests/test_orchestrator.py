@@ -62,10 +62,10 @@ def bidsandtenders_portal():
 def generic_portal():
     return PortalRecord(
         id="portal-gen-001",
-        name="BC Bid",
-        url="https://www.bcbid.gov.bc.ca",
-        level="provincial",
-        province="British Columbia",
+        name="Generic Portal",
+        url="https://procurement.example.com/opportunities",
+        level="municipal",
+        province="Ontario",
         language="en",
         requires_login=False,
         enabled=True,
@@ -81,6 +81,104 @@ def seao_portal():
         level="provincial",
         province="Quebec",
         language="fr",
+        requires_login=False,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def merx_portal():
+    return PortalRecord(
+        id="portal-merx-001",
+        name="Ottawa MERX",
+        url="https://www.merx.com/cityofottawa",
+        level="municipal",
+        province="Ontario",
+        language="en",
+        requires_login=False,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def tier3_portal():
+    return PortalRecord(
+        id="portal-tier3-001",
+        name="Windsor",
+        url="https://opendata.citywindsor.ca/Tools/BidsAndTenders",
+        level="municipal",
+        province="Ontario",
+        language="en",
+        requires_login=False,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def ariba_portal():
+    return PortalRecord(
+        id="portal-ariba-001",
+        name="Toronto Ariba",
+        url="https://www.toronto.ca/business-economy/doing-business-with-the-city/searching-bidding-on-city-contracts/toronto-bids-portal/",
+        level="municipal",
+        province="Ontario",
+        language="en",
+        requires_login=False,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def apc_portal():
+    return PortalRecord(
+        id="portal-apc-001",
+        name="APC",
+        url="https://vendor.purchasingconnection.ca/",
+        level="provincial",
+        province="Alberta",
+        language="en",
+        requires_login=False,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def sasktenders_portal():
+    return PortalRecord(
+        id="portal-sk-001",
+        name="SaskTenders",
+        url="https://www.sasktenders.ca/",
+        level="provincial",
+        province="Saskatchewan",
+        language="en",
+        requires_login=False,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def bcbid_portal():
+    return PortalRecord(
+        id="portal-bcbid-001",
+        name="BC Bid",
+        url="https://www.bcbid.gov.bc.ca/",
+        level="provincial",
+        province="British Columbia",
+        language="en",
+        requires_login=False,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def nbon_portal():
+    return PortalRecord(
+        id="portal-nbon-001",
+        name="NBON",
+        url="https://nbon-rpanb.gnb.ca/",
+        level="provincial",
+        province="New Brunswick",
+        language="en",
         requires_login=False,
         enabled=True,
     )
@@ -128,6 +226,34 @@ class TestClassifyPortal:
     def test_classify_seao(self, seao_portal):
         """SEAO URL returns 'seao'."""
         assert classify_portal(seao_portal) == "seao"
+
+    def test_classify_merx(self, merx_portal):
+        """MERX URL returns 'merx'."""
+        assert classify_portal(merx_portal) == "merx"
+
+    def test_classify_tier3(self, tier3_portal):
+        """Tier 3 city URL returns 'tier3'."""
+        assert classify_portal(tier3_portal) == "tier3"
+
+    def test_classify_ariba(self, ariba_portal):
+        """Ariba-backed city page URL returns 'ariba'."""
+        assert classify_portal(ariba_portal) == "ariba"
+
+    def test_classify_apc(self, apc_portal):
+        """APC URL returns 'apc'."""
+        assert classify_portal(apc_portal) == "apc"
+
+    def test_classify_sasktenders(self, sasktenders_portal):
+        """SaskTenders URL returns 'sasktenders'."""
+        assert classify_portal(sasktenders_portal) == "sasktenders"
+
+    def test_classify_bcbid(self, bcbid_portal):
+        """BC Bid URL returns 'bcbid'."""
+        assert classify_portal(bcbid_portal) == "bcbid"
+
+    def test_classify_nbon(self, nbon_portal):
+        """NBON URL returns 'nbon'."""
+        assert classify_portal(nbon_portal) == "nbon"
 
     def test_classify_other(self, generic_portal):
         """Non-CanadaBuys, non-BidsAndTenders portal returns 'browser'."""
@@ -225,6 +351,130 @@ class TestScrapePortal:
             seao_portal, keywords_by_category=None
         )
         assert listings == [mock_listing]
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.merx_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_merx(self, mock_scrape, merx_portal):
+        """MERX portals dispatch to merx_scrape."""
+        mock_listing = ProcurementListing(
+            title="MERX Listing",
+            source_listing_id="MERX-001",
+        )
+        mock_scrape.return_value = [mock_listing]
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(merx_portal)
+        )
+
+        mock_scrape.assert_called_once_with(merx_portal)
+        assert listings == [mock_listing]
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.tier3_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_tier3(self, mock_scrape, tier3_portal):
+        """Tier 3 portals dispatch to tier3_scrape."""
+        mock_listing = ProcurementListing(
+            title="Windsor Listing",
+            source_listing_id="WIN-001",
+        )
+        mock_scrape.return_value = [mock_listing]
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(tier3_portal)
+        )
+
+        mock_scrape.assert_called_once_with(tier3_portal)
+        assert listings == [mock_listing]
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.ariba_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_ariba(self, mock_scrape, ariba_portal):
+        """Ariba portals dispatch to ariba_scrape."""
+        mock_listing = ProcurementListing(
+            title="Ariba Listing",
+            source_listing_id="ARIBA-001",
+        )
+        mock_scrape.return_value = [mock_listing]
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(ariba_portal)
+        )
+
+        mock_scrape.assert_called_once_with(ariba_portal)
+        assert listings == [mock_listing]
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.apc_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_apc(self, mock_scrape, apc_portal):
+        """APC portals dispatch to apc_scrape."""
+        mock_scrape.return_value = []
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(apc_portal)
+        )
+
+        mock_scrape.assert_called_once_with(apc_portal)
+        assert listings == []
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.sasktenders_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_sasktenders(self, mock_scrape, sasktenders_portal):
+        """SaskTenders portals dispatch to sasktenders_scrape."""
+        mock_scrape.return_value = []
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(sasktenders_portal)
+        )
+
+        mock_scrape.assert_called_once_with(sasktenders_portal)
+        assert listings == []
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.bcbid_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_bcbid(self, mock_scrape, bcbid_portal):
+        """BC Bid portals dispatch to bcbid_scrape."""
+        mock_scrape.return_value = []
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(bcbid_portal)
+        )
+
+        mock_scrape.assert_called_once_with(bcbid_portal)
+        assert listings == []
+        assert search_used is False
+
+    @patch(
+        "scraper.pipeline.orchestrator.nbon_scrape",
+        new_callable=AsyncMock,
+    )
+    def test_dispatch_nbon(self, mock_scrape, nbon_portal):
+        """NBON portals dispatch to nbon_scrape."""
+        mock_scrape.return_value = []
+
+        listings, search_used = asyncio.get_event_loop().run_until_complete(
+            scrape_portal(nbon_portal)
+        )
+
+        mock_scrape.assert_called_once_with(nbon_portal)
+        assert listings == []
         assert search_used is False
 
     @patch(
