@@ -18,7 +18,7 @@ def classify_tier3_portal(portal: PortalRecord) -> str | None:
 
     if "citywindsor.ca" in url or "opendata.citywindsor.ca" in url:
         return "windsor"
-    if "bids.vancouver.ca" in url:
+    if "bids.vancouver.ca" in url or "vancouver.ca" in url:
         return "vancouver"
     if "montreal.ca" in url:
         return "montreal"

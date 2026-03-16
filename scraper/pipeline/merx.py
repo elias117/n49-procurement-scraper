@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
@@ -26,6 +26,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 MERX_DEFAULT_URL = "https://www.merx.com/"
+MERX_DATE_CAPTURE = r"(\d{4}/\d{2}/\d{2}|\d{2}/\d{2}/\d{4})"
 
 
 def _normalize_merx_listing_url(portal_url: str) -> str:
@@ -34,11 +35,24 @@ def _normalize_merx_listing_url(portal_url: str) -> str:
     if not base.startswith(("http://", "https://")):
         base = f"https://{base}"
 
-    base = base.rstrip("/")
-    if not base:
-        base = MERX_DEFAULT_URL.rstrip("/")
+    parts = urlsplit(base)
+    scheme = parts.scheme or "https"
+    netloc = parts.netloc
+    path = (parts.path or "").rstrip("/")
 
-    return f"{base}/solicitations/open-bids"
+    if not netloc:
+        fallback = urlsplit(MERX_DEFAULT_URL)
+        netloc = fallback.netloc
+        path = ""
+
+    lowered_path = path.lower()
+    for suffix in ("/public/solicitations/open", "/solicitations/open-bids"):
+        if lowered_path.endswith(suffix):
+            path = path[: -len(suffix)]
+            break
+
+    listing_path = f"{path}/public/solicitations/open" if path else "/public/solicitations/open"
+    return urlunsplit((scheme, netloc, listing_path, "", ""))
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -74,6 +88,69 @@ def _parse_merx_date(value: str | None) -> str | None:
     return None
 
 
+def _first_selected_text(row, selectors: tuple[str, ...]) -> str | None:
+    for selector in selectors:
+        element = row.select_one(selector)
+        if element is None:
+            continue
+        text = _normalize_text(element.get_text(" "))
+        if text:
+            return text
+    return None
+
+
+def _extract_maincol_text(row) -> str | None:
+    main_col = row.select_one("td.mainCol")
+    if main_col is None:
+        return None
+    return _normalize_text(main_col.get_text(" ", strip=True))
+
+
+def _extract_date_from_maincol(main_col_text: str | None, label: str) -> str | None:
+    if not main_col_text:
+        return None
+
+    match = re.search(rf"{label}\s+{MERX_DATE_CAPTURE}", main_col_text, flags=re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return None
+
+
+def _extract_reference_from_maincol(main_col_text: str | None) -> str | None:
+    if not main_col_text:
+        return None
+
+    # New public MERX rows append a numeric reference at the end of the text blob.
+    match = re.search(rf"Closing\s+{MERX_DATE_CAPTURE}\s+([^\s]+)\s*$", main_col_text, flags=re.IGNORECASE)
+    if match:
+        candidate = _normalize_text(match.group(2))
+        if candidate and re.search(r"\d", candidate):
+            return candidate
+
+    match = re.search(r"\b(\d{6,})\s*$", main_col_text)
+    if match:
+        return match.group(1)
+
+    return None
+
+
+def _extract_organization_from_maincol(main_col_text: str | None, title: str, location: str | None) -> str | None:
+    if not main_col_text:
+        return None
+
+    candidate = main_col_text
+    candidate = re.sub(rf"^{re.escape(title)}\s*", "", candidate, count=1, flags=re.IGNORECASE)
+    candidate = re.sub(r"\b\d+\s+day\(s\)\s+left\b", " ", candidate, flags=re.IGNORECASE)
+    candidate = re.sub(r"\b(?:Calendar|Clock)\b", " ", candidate, flags=re.IGNORECASE)
+    candidate = re.sub(rf"\bPublished\s+{MERX_DATE_CAPTURE}.*$", "", candidate, flags=re.IGNORECASE)
+    candidate = re.sub(rf"\bClosing\s+{MERX_DATE_CAPTURE}.*$", "", candidate, flags=re.IGNORECASE)
+
+    if location:
+        candidate = re.sub(rf"\s*{re.escape(location)}\s*$", "", candidate, count=1, flags=re.IGNORECASE)
+
+    return _normalize_text(candidate)
+
+
 def _extract_listing_id(reference_number: str | None, source_url: str | None) -> str | None:
     if reference_number:
         return reference_number
@@ -93,44 +170,81 @@ def _build_listing_from_row(row, page_url: str) -> ProcurementListing | None:
     if not link:
         return None
 
-    title = _normalize_text(link.get_text(" "))
+    title = _first_selected_text(
+        row,
+        (
+            ".rowTitle",
+            ".sol-title > a.solicitation-link",
+            ".sol-title .solicitation-link",
+        ),
+    ) or _normalize_text(link.get_text(" "))
     if not title:
         return None
 
     href = _normalize_text(link.get("href"))
     source_url = urljoin(page_url, href) if href else page_url
+    main_col_text = _extract_maincol_text(row)
 
-    reference_number = _normalize_text(
-        (row.select_one(".sol-num") or row.select_one(".sol-number") or row.select_one(".sol-ref")).get_text(" ")
-        if row.select_one(".sol-num") or row.select_one(".sol-number") or row.select_one(".sol-ref")
-        else None
+    reference_number = _first_selected_text(
+        row,
+        (".sol-num", ".sol-number", ".sol-ref"),
+    )
+    if not reference_number:
+        for hidden in reversed(row.select(".accessibility-hidden")):
+            hidden_text = _normalize_text(hidden.get_text(" "))
+            if hidden_text and re.search(r"\d", hidden_text):
+                reference_number = hidden_text
+                break
+    if not reference_number:
+        reference_number = _extract_reference_from_maincol(main_col_text)
+
+    location = _first_selected_text(
+        row,
+        (".location", ".sol-region-item"),
+    )
+    organization = _first_selected_text(
+        row,
+        (".buyer-name", ".sol-buyer-name"),
+    )
+    if not organization:
+        organization = _extract_organization_from_maincol(main_col_text, title, location)
+    if not organization:
+        organization = location
+
+    category = _first_selected_text(
+        row,
+        (".sol-category", ".sol-categories", ".sol-type"),
     )
 
-    organization = _normalize_text(
-        (row.select_one(".sol-buyer-name") or row.select_one(".sol-region-item")).get_text(" ")
-        if row.select_one(".sol-buyer-name") or row.select_one(".sol-region-item")
-        else None
+    closing_text = _first_selected_text(
+        row,
+        (
+            ".sol-closing-date .date-value",
+            ".sol-close-date .date-value",
+            ".sol-closing-date .dateValue",
+            ".sol-close-date .dateValue",
+            ".closingDate .dateValue",
+            ".closingDate .date-value",
+            ".sol-closing-date",
+            ".closingDate",
+        ),
     )
+    if not closing_text:
+        closing_text = _extract_date_from_maincol(main_col_text, "Closing")
 
-    category = _normalize_text(
-        (row.select_one(".sol-category") or row.select_one(".sol-categories") or row.select_one(".sol-type")).get_text(" ")
-        if row.select_one(".sol-category") or row.select_one(".sol-categories") or row.select_one(".sol-type")
-        else None
+    posted_text = _first_selected_text(
+        row,
+        (
+            ".sol-publication-date .date-value",
+            ".sol-publication-date .dateValue",
+            ".publicationDate .dateValue",
+            ".publicationDate .date-value",
+            ".sol-publication-date",
+            ".publicationDate",
+        ),
     )
-
-    closing_text = _normalize_text(
-        (row.select_one(".sol-closing-date .date-value") or row.select_one(".sol-close-date .date-value") or row.select_one(".sol-closing-date")).get_text(" ")
-        if row.select_one(".sol-closing-date .date-value")
-        or row.select_one(".sol-close-date .date-value")
-        or row.select_one(".sol-closing-date")
-        else None
-    )
-
-    posted_text = _normalize_text(
-        (row.select_one(".sol-publication-date .date-value") or row.select_one(".sol-publication-date")).get_text(" ")
-        if row.select_one(".sol-publication-date .date-value") or row.select_one(".sol-publication-date")
-        else None
-    )
+    if not posted_text:
+        posted_text = _extract_date_from_maincol(main_col_text, "Published")
 
     description_parts = []
     if organization:
@@ -147,7 +261,7 @@ def _build_listing_from_row(row, page_url: str) -> ProcurementListing | None:
         source_url=source_url,
         source_listing_id=_extract_listing_id(reference_number, source_url),
         status="Open",
-        raw_location=organization,
+        raw_location=location or organization,
     )
 
 

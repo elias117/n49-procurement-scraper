@@ -69,7 +69,7 @@ def classify_portal(portal: PortalRecord) -> str:
 
     if (
         ("edmonton.ca" in url and "bid-procurement-opportunities" in url)
-        or "procurement.novascotia.ca" in url
+        or "novascotia.ca" in url  # covers procurement.novascotia.ca and procurement-portal.novascotia.ca
         or ("toronto.ca" in url and "toronto-bids-portal" in url)
     ):
         return "ariba"
@@ -80,7 +80,7 @@ def classify_portal(portal: PortalRecord) -> str:
         return "sasktenders"
     if "bcbid.gov.bc.ca" in url:
         return "bcbid"
-    if "nbon-rpanb.gnb.ca" in url:
+    if "nbon-rpanb.gnb.ca" in url or "gnb.ca" in url:
         return "nbon"
 
     return "browser"
