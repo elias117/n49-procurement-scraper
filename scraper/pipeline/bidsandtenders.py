@@ -287,6 +287,21 @@ def _parse_bt_date(value: object) -> str | None:
     return None
 
 
+def _extract_reference_from_title(title: str) -> str | None:
+    """
+    Extract a likely solicitation reference from title prefixes.
+
+    Common BidsAndTenders titles use "REF-NUMBER - Title", e.g.
+    "HRM-2026-0119 - Alderney Farmers Market - Renovations".
+    """
+    prefix = title.split(" - ", 1)[0].strip()
+    if not prefix:
+        return None
+    if re.search(r"\d", prefix) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9\-_/.]{2,}", prefix):
+        return prefix
+    return None
+
+
 def _html_to_text(value: object) -> str | None:
     """Convert HTML snippets to clean plain text."""
     if value is None:
@@ -435,11 +450,20 @@ def _row_to_listing(row: dict, base_url: str, home_path: str) -> ProcurementList
     if source_listing_id:
         detail_url = urljoin(base_url, f"{home_path}/Tender/Detail/{source_listing_id}")
 
+    reference_number = (
+        str(row.get("ReferenceNumber") or "").strip()
+        or str(row.get("BidNumber") or "").strip()
+        or _extract_reference_from_title(title)
+    )
+    if not reference_number:
+        reference_number = None
+
     return ProcurementListing(
         title=title,
+        reference_number=reference_number,
         description=_html_to_text(row.get("Description")),
         source_url=detail_url,
-        source_listing_id=source_listing_id,
+        source_listing_id=source_listing_id or reference_number or detail_url,
         status=(str(row.get("Status")).strip() or None) if row.get("Status") else None,
         posting_date=_parse_bt_date(row.get("DateAvailable") or row.get("DateAvailableDisplay")),
         closing_date=_parse_bt_date(row.get("DateClosing") or row.get("DateClosingDisplay")),
@@ -527,7 +551,6 @@ async def bidsandtenders_scrape(
             listings = extract_listings_from_html(html_content, portal.name)
 
         listings = _fix_source_urls(listings, page.url, portal.url)
-        listings = await _enrich_with_details(listings, page, portal)
 
         logger.info(
             "BidsAndTenders scrape complete for '%s': %d listings found",

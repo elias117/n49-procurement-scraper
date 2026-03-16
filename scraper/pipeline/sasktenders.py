@@ -63,6 +63,8 @@ def _extract_competition_type(detail_block) -> str | None:
 
 
 def _extract_print_url(detail_block, page_url: str) -> str | None:
+    if detail_block is None:
+        return None
     link = detail_block.select_one("a[href*='print.aspx?competitionId=']")
     if link and link.get("href"):
         return urljoin(page_url, link["href"])
@@ -79,16 +81,29 @@ def _extract_header_cells(header_block) -> list[str]:
     return cells
 
 
+def _find_detail_block(header_block):
+    """Return the detail block immediately after a header block, when present."""
+    sibling = header_block.find_next_sibling()
+    while sibling is not None:
+        if getattr(sibling, "name", None) != "div":
+            sibling = sibling.find_next_sibling()
+            continue
+
+        sibling_classes = set(sibling.get("class") or [])
+        if "HeaderAccordionPlusFormat" in sibling_classes:
+            return None
+
+        return sibling
+
+    return None
+
+
 def _extract_sasktenders_listings(html_content: str, page_url: str) -> list[ProcurementListing]:
     soup = BeautifulSoup(html_content, "html.parser")
 
     listings: list[ProcurementListing] = []
 
     for header_block in soup.select("div.HeaderAccordionPlusFormat"):
-        detail_block = header_block.find_next_sibling("div", class_="ContentAccordionFormat_SearchPage")
-        if detail_block is None:
-            continue
-
         cells = _extract_header_cells(header_block)
         if len(cells) < 7:
             continue
@@ -103,7 +118,8 @@ def _extract_sasktenders_listings(html_content: str, page_url: str) -> list[Proc
         if not title:
             continue
 
-        category = _extract_competition_type(detail_block)
+        detail_block = _find_detail_block(header_block)
+        category = _extract_competition_type(detail_block) if detail_block else None
         source_url = _extract_print_url(detail_block, page_url) or page_url
 
         description_parts = []

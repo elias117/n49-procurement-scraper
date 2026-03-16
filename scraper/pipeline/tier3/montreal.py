@@ -22,6 +22,10 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 MONTREAL_LISTING_URL = "https://montreal.ca/avis-dappel-doffres"
+MONTREAL_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
 
 _FRENCH_MONTHS = {
     "janvier": 1,
@@ -228,7 +232,10 @@ async def montreal_scrape(portal: PortalRecord) -> list[ProcurementListing]:
 
     try:
         browser = await playwright.chromium.launch(headless=config.BROWSER_HEADLESS)
-        context = await browser.new_context(ignore_https_errors=True)
+        context = await browser.new_context(
+            ignore_https_errors=True,
+            user_agent=MONTREAL_USER_AGENT,
+        )
         page = await context.new_page()
 
         all_summaries: list[ProcurementListing] = []
@@ -238,8 +245,8 @@ async def montreal_scrape(portal: PortalRecord) -> list[ProcurementListing]:
 
         while next_url and next_url not in visited_pages and len(visited_pages) < max_pages:
             visited_pages.add(next_url)
-            await page.goto(next_url, wait_until="networkidle", timeout=60000)
-            await page.wait_for_timeout(1500)
+            await page.goto(next_url, wait_until="domcontentloaded", timeout=60000)
+            await page.wait_for_timeout(1200)
 
             html_content = await page.content()
             summaries, discovered_next = _extract_summary_listings(html_content, page.url or next_url)
@@ -253,15 +260,20 @@ async def montreal_scrape(portal: PortalRecord) -> list[ProcurementListing]:
             len(all_summaries),
         )
 
+        detail_limit = max(config.BROWSER_DETAIL_MAX_PAGES, 0)
         enriched: list[ProcurementListing] = []
-        for summary in all_summaries:
+        for idx, summary in enumerate(all_summaries):
+            if idx >= detail_limit:
+                enriched.append(summary)
+                continue
+
             if not summary.source_url:
                 enriched.append(summary)
                 continue
 
             try:
-                await page.goto(summary.source_url, wait_until="networkidle", timeout=60000)
-                await page.wait_for_timeout(1000)
+                await page.goto(summary.source_url, wait_until="domcontentloaded", timeout=60000)
+                await page.wait_for_timeout(800)
                 detail_html = await page.content()
                 detail_metadata = _extract_detail_metadata(detail_html)
                 enriched.append(_merge_summary_and_detail(summary, detail_metadata))
@@ -272,6 +284,14 @@ async def montreal_scrape(portal: PortalRecord) -> list[ProcurementListing]:
                     summary.source_url,
                 )
                 enriched.append(summary)
+
+        if len(all_summaries) > detail_limit:
+            logger.info(
+                "Portal '%s': Montreal detail enrichment limited to %d/%d listings",
+                portal.name,
+                detail_limit,
+                len(all_summaries),
+            )
 
         listings = deduplicate_listings(enriched)
         logger.info("Portal '%s': Montreal scraped %d listings", portal.name, len(listings))

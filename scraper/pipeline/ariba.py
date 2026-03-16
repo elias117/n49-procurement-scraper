@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 
 EDMONTON_ARIBA_PROFILE_URL = "https://service.ariba.com/Discovery.aw/ad/profile?key=AN01394774623"
 TORONTO_CONFIG_URL = "https://www.toronto.ca/app_content/solicitations_public_config/"
+ARIBA_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -170,9 +174,26 @@ def _extract_ariba_profile_listings(
 
 
 async def _load_page_content(page: Page, url: str) -> str:
-    await page.goto(url, wait_until="networkidle", timeout=90000)
-    await page.wait_for_timeout(1500)
+    await page.goto(url, wait_until="domcontentloaded", timeout=90000)
+    await page.wait_for_timeout(4000)
     return await page.content()
+
+
+def _extract_reference_from_link(source_url: str | None) -> str | None:
+    text = _normalize_text(source_url)
+    if not text:
+        return None
+
+    for pattern in (
+        r"/preview/(\d+)",
+        r"/rfx/(\d+)",
+        r"[?&](?:eventid|id)=(\d+)",
+    ):
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+    return None
 
 
 async def _scrape_edmonton(page: Page, portal: PortalRecord) -> list[ProcurementListing]:
@@ -211,12 +232,13 @@ def _build_toronto_api_url(config_data: dict) -> str:
         f"{today}"
     )
 
+    safe_chars = "' ="
     query = (
         "$format=application/json;odata.metadata=none"
         "&$count=true"
         "&$skip=0"
         "&$top=200"
-        f"&$filter={quote(filter_value, safe="' =")}"  # preserve OData operators and quoted literals
+        f"&$filter={quote(filter_value, safe=safe_chars)}"  # preserve OData operators and quoted literals
     )
 
     return f"{host}{api_public}{repo}/feis_solicitation_published?{query}"
@@ -230,12 +252,15 @@ def _extract_toronto_records(records: list[dict], api_url: str) -> list[Procurem
         if not title:
             continue
 
-        reference_number = _normalize_text(record.get("Reference_Number"))
+        source_url = _normalize_text(record.get("Ariba_Discovery_Posting_Link")) or api_url
+        reference_number = (
+            _normalize_text(record.get("Reference_Number"))
+            or _extract_reference_from_link(source_url)
+        )
         category = _normalize_text(record.get("High_Level_Category") or record.get("Posting_Type"))
         closing_date = _parse_generic_date(record.get("Closing_Date"))
         posting_date = _parse_generic_date(record.get("Issue_Date"))
 
-        source_url = _normalize_text(record.get("Ariba_Discovery_Posting_Link")) or api_url
         source_listing_id = _normalize_text(record.get("id")) or reference_number or source_url
 
         description_parts = []
@@ -336,8 +361,8 @@ def _listing_from_nova_scotia_record(record: dict, portal_url: str) -> Procureme
 
 
 async def _scrape_nova_scotia(page: Page, portal: PortalRecord) -> list[ProcurementListing]:
-    await page.goto(portal.url, wait_until="networkidle", timeout=90000)
-    await page.wait_for_timeout(4000)
+    await page.goto(portal.url, wait_until="domcontentloaded", timeout=90000)
+    await page.wait_for_timeout(6000)
 
     # First pass: extract any rendered table/card rows directly from DOM.
     dom_rows = await page.evaluate(
@@ -355,20 +380,39 @@ async def _scrape_nova_scotia(page: Page, portal: PortalRecord) -> list[Procurem
               if (!cells.length || cells.every((v) => !v)) {
                 continue;
               }
+
+              // Nova Scotia tends to render paired rows where one has merged text.
+              // Keep only the normalized 7-cell row:
+              // [Tender ID, Solicitation Type, Title, Organization, Posted, Closing, Status]
+              const meaningful = cells.filter((value) => !!value);
+              if (meaningful.length === 7) {
+                const firstLink = tr.querySelector('a[href]');
+                results.push({
+                  tender_id: meaningful[0],
+                  solicitation_type: meaningful[1],
+                  title: meaningful[2],
+                  organization: meaningful[3],
+                  posted_date: meaningful[4],
+                  closing_date: meaningful[5],
+                  status: meaningful[6],
+                  href: firstLink ? firstLink.getAttribute('href') : null,
+                });
+                continue;
+              }
+
               const row = {};
               headers.forEach((h, i) => {
                 if (h && cells[i]) {
                   row[h] = cells[i];
                 }
               });
-              const firstLink = tr.querySelector('a[href]');
-              if (firstLink) {
-                row.href = firstLink.getAttribute('href');
+              if (Object.keys(row).length) {
+                const firstLink = tr.querySelector('a[href]');
+                if (firstLink) {
+                  row.href = firstLink.getAttribute('href');
+                }
+                results.push(row);
               }
-              if (!row.title && cells[0]) {
-                row.title = cells[0];
-              }
-              results.push(row);
             }
           }
 
@@ -383,22 +427,42 @@ async def _scrape_nova_scotia(page: Page, portal: PortalRecord) -> list[Procurem
         if not title:
             continue
 
-        reference = _normalize_text(row.get("tender id") or row.get("id") or row.get("reference"))
-        category = _normalize_text(row.get("category") or row.get("type"))
-        close_date = _parse_generic_date(row.get("closing date") or row.get("close date"))
+        reference = _normalize_text(
+            row.get("tender_id")
+            or row.get("tender id")
+            or row.get("id")
+            or row.get("reference")
+        )
+        category = _normalize_text(
+            row.get("solicitation_type")
+            or row.get("category")
+            or row.get("type")
+        )
+        organization = _normalize_text(row.get("organization"))
+        close_date = _parse_generic_date(row.get("closing_date") or row.get("closing date") or row.get("close date"))
+        posted_date = _parse_generic_date(row.get("posted_date") or row.get("posted date"))
         source_url = urljoin(page.url, row.get("href") or "") if row.get("href") else page.url
+
+        if not reference or not posted_date or not close_date:
+            continue
+
+        description_parts = []
+        if category:
+            description_parts.append(f"Category: {category}")
+        if organization:
+            description_parts.append(f"Organization: {organization}")
 
         listings.append(
             ProcurementListing(
                 title=title,
                 reference_number=reference,
-                description=f"Category: {category}" if category else None,
-                posting_date=None,
+                description=" | ".join(description_parts) if description_parts else None,
+                posting_date=posted_date,
                 closing_date=close_date,
                 source_url=source_url,
                 source_listing_id=reference or source_url,
-                status="Open",
-                raw_location="Nova Scotia",
+                status=_normalize_text(row.get("status")) or "Open",
+                raw_location=organization or "Nova Scotia",
             )
         )
 
@@ -473,7 +537,10 @@ async def ariba_scrape(portal: PortalRecord) -> list[ProcurementListing]:
 
     try:
         browser = await playwright.chromium.launch(headless=config.BROWSER_HEADLESS)
-        context = await browser.new_context(ignore_https_errors=True)
+        context = await browser.new_context(
+            ignore_https_errors=True,
+            user_agent=ARIBA_USER_AGENT,
+        )
         page = await context.new_page()
 
         if portal_type == "edmonton":

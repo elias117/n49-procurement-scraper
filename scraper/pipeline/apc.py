@@ -19,6 +19,11 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 APC_URL = "https://vendor.purchasingconnection.ca/"
+APC_SEARCH_URL = "https://purchasing.alberta.ca/search?npo=1"
+APC_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -32,6 +37,11 @@ def _parse_date(value: str | None) -> str | None:
     text = _normalize_text(value)
     if not text:
         return None
+
+    # Keep only the date token for values like "Mar 15, 2026 • 2:09 pm (MT)".
+    match = re.search(r"([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})", text)
+    if match:
+        text = match.group(1)
 
     text = re.sub(r"\s+[A-Z]{2,4}$", "", text)
 
@@ -65,9 +75,18 @@ def _rows_to_listings(rows: list[dict], base_url: str) -> list[ProcurementListin
         if not title:
             continue
 
-        reference_number = _normalize_text(row.get("reference_number") or row.get("reference"))
+        reference_number = _normalize_text(
+            row.get("reference_number") or row.get("reference")
+        )
         category = _normalize_text(row.get("category") or row.get("type"))
-        closing_date = _parse_date(row.get("closing_date") or row.get("close_date") or row.get("close"))
+        closing_date = _parse_date(
+            row.get("closing_date") or row.get("close_date") or row.get("close")
+        )
+        raw_location = _normalize_text(
+            row.get("region")
+            or row.get("location")
+            or row.get("raw_location")
+        )
 
         href = _normalize_text(row.get("source_url") or row.get("href"))
         source_url = urljoin(base_url, href) if href else base_url
@@ -84,11 +103,25 @@ def _rows_to_listings(rows: list[dict], base_url: str) -> list[ProcurementListin
                 source_url=source_url,
                 source_listing_id=reference_number or source_url,
                 status="Open",
-                raw_location="Alberta",
+                raw_location=raw_location or "Alberta",
             )
         )
 
     return listings
+
+
+def _normalize_apc_listing_url(portal_url: str) -> str:
+    base = (portal_url or "").strip()
+    if not base:
+        return APC_SEARCH_URL
+
+    lowered = base.lower()
+    if "/search" in lowered:
+        if "?" in base:
+            return base
+        return f"{base}?npo=1"
+
+    return APC_SEARCH_URL
 
 
 async def apc_scrape(portal: PortalRecord) -> list[ProcurementListing]:
@@ -97,7 +130,7 @@ async def apc_scrape(portal: PortalRecord) -> list[ProcurementListing]:
         logger.warning("Playwright not installed; returning empty APC listing set")
         return []
 
-    url = portal.url or APC_URL
+    url = _normalize_apc_listing_url(portal.url or APC_URL)
 
     playwright = await async_playwright().start()
     browser = None
@@ -105,11 +138,18 @@ async def apc_scrape(portal: PortalRecord) -> list[ProcurementListing]:
 
     try:
         browser = await playwright.chromium.launch(headless=config.BROWSER_HEADLESS)
-        context = await browser.new_context(ignore_https_errors=True)
+        context = await browser.new_context(
+            ignore_https_errors=True,
+            user_agent=APC_USER_AGENT,
+        )
         page = await context.new_page()
 
-        await page.goto(url, wait_until="networkidle", timeout=90000)
-        await page.wait_for_timeout(6000)
+        await page.goto(url, wait_until="domcontentloaded", timeout=90000)
+        await page.wait_for_timeout(8000)
+
+        if "/search" not in (page.url or ""):
+            await page.goto(APC_SEARCH_URL, wait_until="domcontentloaded", timeout=90000)
+            await page.wait_for_timeout(8000)
 
         rows = await page.evaluate(
             r"""
@@ -117,36 +157,35 @@ async def apc_scrape(portal: PortalRecord) -> list[ProcurementListing]:
               const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
               const results = [];
 
-              // Table-style listings
-              const tables = Array.from(document.querySelectorAll('table'));
-              for (const table of tables) {
-                const headers = Array.from(table.querySelectorAll('thead th')).map((th) => clean(th.innerText).toLowerCase());
-                for (const tr of Array.from(table.querySelectorAll('tbody tr'))) {
-                  const cells = Array.from(tr.querySelectorAll('td')).map((td) => clean(td.innerText));
-                  if (!cells.length || cells.every((c) => !c)) continue;
-                  const row = {};
-                  headers.forEach((h, i) => { if (h && cells[i]) row[h] = cells[i]; });
-                  const link = tr.querySelector('a[href]');
-                  if (link) row.href = link.getAttribute('href');
-                  if (!row.title && cells[0]) row.title = cells[0];
-                  results.push(row);
-                }
-              }
+              const cards = Array.from(document.querySelectorAll('apc-opportunity-search-result'));
+              for (const card of cards) {
+                const titleLink = card.querySelector("a[href*='/posting/']");
+                const title = clean(titleLink && titleLink.innerText);
+                if (!title) continue;
 
-              // Card-style listings fallback
-              if (!results.length) {
-                const cards = Array.from(document.querySelectorAll('article, .card, [class*="opportun"], [class*="tender"]'));
-                for (const card of cards) {
-                  const titleNode = card.querySelector('h1, h2, h3, h4, a');
-                  const title = clean(titleNode && titleNode.innerText);
-                  if (!title) continue;
-                  const link = card.querySelector('a[href]');
-                  results.push({
-                    title,
-                    href: link ? link.getAttribute('href') : null,
-                    close: clean(card.innerText.match(/(Close|Closing|Due)[:\s]+[^\n]+/i)?.[0] || ''),
-                  });
+                const row = {
+                  title,
+                  href: titleLink ? titleLink.getAttribute('href') : null,
+                };
+
+                for (const detail of Array.from(card.querySelectorAll('.search-result__detail'))) {
+                  const text = clean(detail.innerText);
+                  if (!text) continue;
+
+                  if (/^APC Reference/i.test(text)) {
+                    row.reference_number = clean(text.replace(/^APC Reference\s*#?\s*/i, ''));
+                  } else if (/^Category/i.test(text)) {
+                    row.category = clean(text.replace(/^Category\s*/i, ''));
+                  } else if (/^Posting Date/i.test(text)) {
+                    row.posting_date = clean(text.replace(/^Posting Date\s*•?\s*Time\s*/i, ''));
+                  } else if (/^Closing Date/i.test(text)) {
+                    row.closing_date = clean(text.replace(/^Closing Date\s*•?\s*Time\s*/i, ''));
+                  } else if (/^Region\(s\) of Delivery/i.test(text)) {
+                    row.region = clean(text.replace(/^Region\(s\) of Delivery\s*/i, ''));
+                  }
                 }
+
+                results.push(row);
               }
 
               return results;

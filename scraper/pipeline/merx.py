@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 
 MERX_DEFAULT_URL = "https://www.merx.com/"
 MERX_DATE_CAPTURE = r"(\d{4}/\d{2}/\d{2}|\d{2}/\d{2}/\d{4})"
+MERX_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
 
 
 def _normalize_merx_listing_url(portal_url: str) -> str:
@@ -38,20 +42,28 @@ def _normalize_merx_listing_url(portal_url: str) -> str:
     parts = urlsplit(base)
     scheme = parts.scheme or "https"
     netloc = parts.netloc
-    path = (parts.path or "").rstrip("/")
+    path = parts.path or ""
 
     if not netloc:
         fallback = urlsplit(MERX_DEFAULT_URL)
         netloc = fallback.netloc
         path = ""
 
-    lowered_path = path.lower()
-    for suffix in ("/public/solicitations/open", "/solicitations/open-bids"):
-        if lowered_path.endswith(suffix):
-            path = path[: -len(suffix)]
-            break
+    segments = [segment for segment in path.split("/") if segment]
+    lowered = [segment.lower() for segment in segments]
 
-    listing_path = f"{path}/public/solicitations/open" if path else "/public/solicitations/open"
+    # Normalize known listing suffixes when a full listing URL is provided.
+    if len(lowered) >= 3 and lowered[-3:] == ["public", "solicitations", "open"]:
+        segments = segments[:-3]
+    elif len(lowered) >= 2 and lowered[-2:] == ["solicitations", "open-bids"]:
+        segments = segments[:-2]
+
+    tenant = segments[0] if segments else None
+    if tenant and tenant.lower() not in {"public", "solicitations", "open", "open-bids"}:
+        listing_path = f"/{tenant}/solicitations/open-bids"
+    else:
+        listing_path = "/public/solicitations/open"
+
     return urlunsplit((scheme, netloc, listing_path, "", ""))
 
 
@@ -323,7 +335,10 @@ async def merx_scrape(portal: PortalRecord) -> list[ProcurementListing]:
 
     try:
         browser = await playwright.chromium.launch(headless=config.BROWSER_HEADLESS)
-        context = await browser.new_context(ignore_https_errors=True)
+        context = await browser.new_context(
+            ignore_https_errors=True,
+            user_agent=MERX_USER_AGENT,
+        )
         page = await context.new_page()
 
         page_urls = await _collect_listing_pages(page, listing_url, portal.name)

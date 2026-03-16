@@ -80,6 +80,10 @@ def _rows_to_listings(rows: list[dict], base_url: str) -> list[ProcurementListin
             or row.get("closing")
         )
 
+        # Ignore generic CMS rows that are not actual opportunities.
+        if not reference_number and not close_date:
+            continue
+
         href = _normalize_text(row.get("href") or row.get("source_url"))
         source_url = urljoin(base_url, href) if href else base_url
 
@@ -124,18 +128,6 @@ async def _extract_rows(page) -> list[dict]:
             }
           }
 
-          // Card/list fallback
-          if (!rows.length) {
-            const links = Array.from(document.querySelectorAll('a[href]'));
-            for (const link of links) {
-              const text = clean(link.innerText);
-              if (!text) continue;
-              if (/solicitation|opportunit|request for|invitation to|tender/i.test(text)) {
-                rows.push({ title: text, href: link.getAttribute('href') });
-              }
-            }
-          }
-
           return rows;
         }
         """
@@ -165,15 +157,28 @@ async def bcbid_scrape(portal: PortalRecord) -> list[ProcurementListing]:
         body_text = await page.text_content("body")
         body_text = _normalize_text(body_text) or ""
 
-        if "checking your browser" in body_text.lower():
-            # Give recaptcha/browser check flow time to complete.
-            await page.wait_for_timeout(8000)
+        lowered_body = body_text.lower()
+        if "checking your browser" in lowered_body or "browser check" in lowered_body:
+            # BC Bid currently sits behind an anti-bot challenge in public mode.
+            logger.warning(
+                "Portal '%s': BC Bid browser-check gate prevented listing access",
+                portal.name,
+            )
+            return []
 
         rows = await _extract_rows(page)
 
         if not rows:
-            await page.goto(BCBID_PUBLIC_BROWSE_URL, wait_until="networkidle", timeout=90000)
+            await page.goto(BCBID_PUBLIC_BROWSE_URL, wait_until="domcontentloaded", timeout=90000)
             await page.wait_for_timeout(4000)
+            second_body = _normalize_text(await page.text_content("body")) or ""
+            lowered_second = second_body.lower()
+            if "browser check" in lowered_second or "checking your browser" in lowered_second:
+                logger.warning(
+                    "Portal '%s': BC Bid browse page remained behind browser-check gate",
+                    portal.name,
+                )
+                return []
             rows = await _extract_rows(page)
 
         listings = _rows_to_listings(rows or [], page.url or url)
