@@ -17,6 +17,8 @@ RUN python -m playwright install chromium
 COPY scraper/ ./scraper/
 COPY keywords_library.csv ./keywords_library.csv
 
-# Run scraper with Xvfb virtual framebuffer
-# Chromium runs in non-headless mode inside the virtual display
-CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1920x1080x24", "python", "scraper/main.py"]
+# Start Xvfb and keep container alive.
+# Cron triggers runs via: docker exec procurement-intel-scraper-1 python scraper/main.py
+COPY scraper/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+CMD ["/entrypoint.sh"]
