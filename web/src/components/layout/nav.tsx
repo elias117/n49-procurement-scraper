@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { LogOut, Search, Activity } from "lucide-react";
+import { Search, Activity } from "lucide-react";
 
 const navLinks = [
   { href: "/dashboard", label: "Search", icon: Search },
@@ -48,15 +47,6 @@ export function Nav({ children }: { children?: React.ReactNode }) {
         </div>
         <div className="flex items-center gap-4">
           {children}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </Button>
         </div>
       </div>
     </nav>

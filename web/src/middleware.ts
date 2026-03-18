@@ -1,5 +1,4 @@
-export { auth as middleware } from "@/auth";
-
+// Auth removed — dashboard is publicly accessible
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: [],
 };
