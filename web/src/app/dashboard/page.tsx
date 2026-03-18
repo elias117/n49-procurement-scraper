@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { useSearch } from "@/hooks/use-search";
 import { useListingDetail } from "@/hooks/use-listing-detail";
 import { SearchBar } from "@/components/search/search-bar";
@@ -11,8 +10,9 @@ import { Pagination } from "@/components/search/pagination";
 import { SortControls } from "@/components/search/sort-controls";
 import { ListingDetailSheet } from "@/components/search/listing-detail";
 import { Skeleton } from "@/components/ui/skeleton";
-import { API_PUBLIC } from "@/lib/api";
 import type { ListingResult } from "@/types/search";
+
+const LAST_VISITED_KEY = "procurement_last_visited_at";
 
 /**
  * Loading fallback shown while URL search params are being read.
@@ -48,43 +48,26 @@ function DashboardSkeleton() {
  */
 function DashboardContent() {
   const { params, setParams, setFilter, data, loading, error } = useSearch();
-  const { data: session } = useSession();
 
   // Listing detail Sheet state
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const { listing: detailListing, loading: detailLoading } =
     useListingDetail(selectedListingId);
 
-  // "New" badge: store the PREVIOUS last_visited_at before updating
+  // "New" badge: stored in localStorage so it persists without auth
   const [lastVisitedAt, setLastVisitedAt] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session?.user?.id) return;
-
-    const userId = session.user.id;
-
-    async function readThenUpdateLastVisit() {
-      try {
-        // Step 1: READ the previous last_visited_at value
-        const getRes = await fetch(`${API_PUBLIC}/users/${userId}/last-visit`);
-        if (getRes.ok) {
-          const body = await getRes.json();
-          // Store the PREVIOUS value for "New" badge comparison
-          setLastVisitedAt(body.last_visited_at ?? null);
-        }
-
-        // Step 2: UPDATE last_visited_at to NOW (for next visit)
-        await fetch(`${API_PUBLIC}/users/${userId}/last-visit`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-        });
-      } catch {
-        // Non-critical: badges just won't show if this fails
-      }
+    try {
+      // Read the PREVIOUS last_visited_at for "New" badge comparison
+      const prev = localStorage.getItem(LAST_VISITED_KEY);
+      setLastVisitedAt(prev);
+      // Update to NOW (for next visit)
+      localStorage.setItem(LAST_VISITED_KEY, new Date().toISOString());
+    } catch {
+      // Non-critical: badges just won't show if localStorage is unavailable
     }
-
-    readThenUpdateLastVisit();
-  }, [session?.user?.id]);
+  }, []);
 
   const handleSelectListing = useCallback((listing: ListingResult) => {
     setSelectedListingId(listing.id);
