@@ -17,6 +17,7 @@ from typing import Optional
 
 from scraper.db import (
     db_connection,
+    deduplicate_cross_portal_listings,
     get_enabled_portals,
     get_portal_by_name,
     purge_unmatched_listings,
@@ -302,6 +303,12 @@ async def run_pipeline(
                 skip_embeddings=skip_embeddings,
             )
             results[portal.name] = stats
+
+        cross_portal_removed = deduplicate_cross_portal_listings(conn)
+        logger.info(
+            "Cross-portal dedup removed %d duplicate listings",
+            cross_portal_removed,
+        )
 
         # Purge non-matching listings from database (PURG-01)
         # Only runs when explicitly requested via --purge flag.

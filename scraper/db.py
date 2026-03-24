@@ -317,6 +317,80 @@ def upsert_listings(conn, portal_id: str, listings: list) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Cross-portal dedup
+# ---------------------------------------------------------------------------
+
+# Remove duplicate listings that appear across different portals by comparing
+# normalized titles (case/punctuation/spacing-insensitive).
+CROSS_PORTAL_DEDUP_SQL = """
+WITH normalized AS (
+    SELECT
+        id,
+        source_portal,
+        NULLIF(BTRIM(source_url), '') AS source_url,
+        COALESCE(completeness_score, 0) AS completeness_score,
+        updated_at,
+        regexp_replace(lower(BTRIM(title)), '[^a-z0-9]+', '', 'g') AS normalized_title
+    FROM listings
+    WHERE title IS NOT NULL
+),
+cross_portal_groups AS (
+    SELECT normalized_title
+    FROM normalized
+    WHERE normalized_title <> ''
+    GROUP BY normalized_title
+    HAVING count(DISTINCT source_portal) > 1
+),
+ranked AS (
+    SELECT
+        n.id,
+        row_number() OVER (
+            PARTITION BY n.normalized_title
+            ORDER BY
+                (n.source_url IS NOT NULL) DESC,
+                n.completeness_score DESC,
+                n.updated_at DESC,
+                n.id
+        ) AS rn,
+        n.normalized_title
+    FROM normalized AS n
+    JOIN cross_portal_groups AS g
+      ON g.normalized_title = n.normalized_title
+),
+to_delete AS (
+    SELECT id
+    FROM ranked
+    WHERE rn > 1
+)
+DELETE FROM listings AS l
+USING to_delete AS d
+WHERE l.id = d.id;
+"""
+
+
+def deduplicate_cross_portal_listings(conn) -> int:
+    """
+    Remove cross-portal duplicate listings with near-identical titles.
+
+    Keeps one "best" row per normalized title, preferring:
+    1) non-empty source_url
+    2) higher completeness_score
+    3) most recently updated
+
+    Returns:
+        Number of rows deleted.
+    """
+    with conn.cursor() as cur:
+        cur.execute(CROSS_PORTAL_DEDUP_SQL)
+        try:
+            removed = int(cur.rowcount or 0)
+        except (TypeError, ValueError):
+            removed = 0
+
+    return removed if removed > 0 else 0
+
+
+# ---------------------------------------------------------------------------
 # Scrape run helpers
 # ---------------------------------------------------------------------------
 

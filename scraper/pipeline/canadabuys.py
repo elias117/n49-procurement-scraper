@@ -24,6 +24,9 @@ CANADABUYS_CSV_URL = (
     "https://canadabuys.canada.ca/opendata/pub/"
     "openTenderNotice-ouvertAvisAppelOffres.csv"
 )
+CANADABUYS_TENDER_NOTICE_URL_PREFIX = (
+    "https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/"
+)
 
 # Maps our field names to CanadaBuys CSV column names.
 # Source: CanadaBuys open data
@@ -188,6 +191,10 @@ def _parse_csv(csv_text: str, portal: PortalRecord) -> list[ListingRecord]:
         source_url = _get_field(row, "notice_url") or _get_field(
             row, "notice_url_fr"
         )
+        if source_url is None:
+            source_url = (
+                f"{CANADABUYS_TENDER_NOTICE_URL_PREFIX}{ref_number}"
+            )
 
         listing = ListingRecord(
             title=title,
@@ -199,7 +206,7 @@ def _parse_csv(csv_text: str, portal: PortalRecord) -> list[ListingRecord]:
             status=_map_status(_get_field(row, "status")),
             classification_codes=classification_codes or None,
             contact_info=contact_info,
-            source_url=source_url or None,
+            source_url=source_url,
             province=_get_field(row, "regions_of_opportunity") or None,
             raw_location=_get_field(row, "regions_of_delivery") or None,
             language=language,
