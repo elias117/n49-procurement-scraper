@@ -10,12 +10,14 @@ from unittest.mock import MagicMock, patch, call
 import pytest
 
 from scraper.db import (
+    CROSS_PORTAL_DEDUP_SQL,
     UPSERT_SQL,
-    upsert_listings,
-    start_scrape_run,
-    complete_scrape_run,
-    fail_scrape_run,
     check_auto_disable,
+    complete_scrape_run,
+    deduplicate_cross_portal_listings,
+    fail_scrape_run,
+    start_scrape_run,
+    upsert_listings,
 )
 from scraper.models import ListingRecord
 
@@ -252,3 +254,35 @@ class TestCheckAutoDisable:
         result = check_auto_disable(mock_db_connection, portal_id)
 
         assert result is False
+
+
+# ---------------------------------------------------------------------------
+# Cross-portal dedup tests
+# ---------------------------------------------------------------------------
+
+
+class TestCrossPortalDedup:
+    """Tests for cross-portal duplicate cleanup in db.py."""
+
+    def test_cross_portal_dedup_sql_targets_cross_portal_groups(self):
+        """SQL should explicitly require duplicates across different portals."""
+        assert "HAVING count(DISTINCT source_portal) > 1" in CROSS_PORTAL_DEDUP_SQL
+        assert "DELETE FROM listings AS l" in CROSS_PORTAL_DEDUP_SQL
+
+    def test_deduplicate_cross_portal_listings_returns_deleted_count(
+        self, mock_db_connection
+    ):
+        """Function executes cleanup SQL and returns deleted row count."""
+        mock_cursor = mock_db_connection._mock_cursor
+        mock_cursor.rowcount = 2
+
+        removed = deduplicate_cross_portal_listings(mock_db_connection)
+
+        assert removed == 2
+        execute_call = mock_cursor.execute.call_args
+        assert execute_call is not None
+        sql = execute_call[0][0]
+        assert "WITH normalized AS" in sql
+        assert "DELETE FROM listings AS l" in sql
+        calls = mock_cursor.execute.call_args_list
+        assert len(calls) == 1

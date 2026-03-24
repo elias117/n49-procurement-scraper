@@ -366,6 +366,33 @@ class TestParseCSV:
         # Row 3 has no contact info
         assert row3.contact_info is None
 
+    def test_source_url_backfilled_from_source_listing_id_when_missing(self, portal):
+        """When notice URL columns are empty, source_url is built from listing id."""
+        header = ",".join([
+            "referenceNumber-numeroReference",
+            "title-titre-eng",
+            "title-titre-fra",
+            "noticeURL-URLavis-eng",
+            "noticeURL-URLavis-fra",
+        ])
+        row = ",".join([
+            "cb-600-32917191",
+            "Translation Services for ISCD",
+            "",
+            "",
+            "",
+        ])
+        csv_text = f"{header}\n{row}\n"
+
+        listings = _parse_csv(csv_text, portal)
+
+        assert len(listings) == 1
+        assert listings[0].source_listing_id == "cb-600-32917191"
+        assert (
+            listings[0].source_url
+            == "https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/cb-600-32917191"
+        )
+
     def test_utf8_bom_handled(self, portal):
         """CSV with BOM prefix should parse correctly."""
         header = ",".join([

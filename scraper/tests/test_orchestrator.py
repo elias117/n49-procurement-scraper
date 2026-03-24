@@ -763,13 +763,23 @@ class TestProcessPortal:
 
 
 class TestRunPipeline:
+    @patch(
+        "scraper.pipeline.orchestrator.deduplicate_cross_portal_listings",
+        return_value=0,
+    )
     @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_enabled_portals")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_processes_all_enabled(
-        self, mock_db_ctx, mock_get_portals, mock_process, mock_load_kw, mock_load_kw_cat
+        self,
+        mock_db_ctx,
+        mock_get_portals,
+        mock_process,
+        mock_load_kw,
+        mock_load_kw_cat,
+        mock_cross_portal_dedup,
     ):
         """run_pipeline processes all enabled portals."""
         mock_conn = MagicMock()
@@ -798,14 +808,25 @@ class TestRunPipeline:
         assert "Portal0" in result
         assert "Portal1" in result
         assert "Portal2" in result
+        mock_cross_portal_dedup.assert_called_once_with(mock_conn)
 
+    @patch(
+        "scraper.pipeline.orchestrator.deduplicate_cross_portal_listings",
+        return_value=0,
+    )
     @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_portal_by_name")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_single_portal(
-        self, mock_db_ctx, mock_get_portal, mock_process, mock_load_kw, mock_load_kw_cat
+        self,
+        mock_db_ctx,
+        mock_get_portal,
+        mock_process,
+        mock_load_kw,
+        mock_load_kw_cat,
+        mock_cross_portal_dedup,
     ):
         """run_pipeline with portal_name runs only that portal."""
         mock_conn = MagicMock()
@@ -835,6 +856,7 @@ class TestRunPipeline:
         )
         assert len(result) == 1
         assert "CanadaBuys" in result
+        mock_cross_portal_dedup.assert_called_once_with(mock_conn)
 
     @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
@@ -855,13 +877,23 @@ class TestRunPipeline:
                 run_pipeline(portal_name="NonExistent")
             )
 
+    @patch(
+        "scraper.pipeline.orchestrator.deduplicate_cross_portal_listings",
+        return_value=0,
+    )
     @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
     @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
     @patch("scraper.pipeline.orchestrator.get_enabled_portals")
     @patch("scraper.pipeline.orchestrator.db_connection")
     def test_run_pipeline_error_isolation(
-        self, mock_db_ctx, mock_get_portals, mock_process, mock_load_kw, mock_load_kw_cat
+        self,
+        mock_db_ctx,
+        mock_get_portals,
+        mock_process,
+        mock_load_kw,
+        mock_load_kw_cat,
+        mock_cross_portal_dedup,
     ):
         """A failed portal does not prevent other portals from processing."""
         mock_conn = MagicMock()
@@ -901,6 +933,7 @@ class TestRunPipeline:
         assert mock_process.call_count == 2
         assert "error" in result["FailPortal"]
         assert result["GoodPortal"]["found"] == 10
+        mock_cross_portal_dedup.assert_called_once_with(mock_conn)
 
 
 # ---------------------------------------------------------------------------
