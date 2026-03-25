@@ -66,6 +66,7 @@ jobs:
       - name: Run scraper tests
         env:
           DATABASE_URL: postgresql://procurement:testpassword@localhost:5432/procurement_test
+          OPENAI_API_KEY: test-key-not-used-in-unit-tests
         run: |
           pytest scraper/tests/ -v --tb=short -x
 
