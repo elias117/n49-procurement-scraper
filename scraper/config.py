@@ -1,28 +1,51 @@
 """
 Scraper pipeline configuration.
 
-Loads settings from environment variables. Required variables raise ValueError
-at import time if not set.
+Loads settings from environment variables. Required variables are validated
+lazily via helper functions so that importing this module never fails — tests
+can import any module without needing real credentials.
 """
 
 import os
 import logging
 
-# ---------------------------------------------------------------------------
-# Required environment variables (fail fast at import)
-# ---------------------------------------------------------------------------
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError(
-        "DATABASE_URL environment variable is required. "
-        "Example: postgresql://user:pass@host:5432/dbname"
-    )
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise ValueError(
-        "OPENAI_API_KEY environment variable is required."
-    )
+# ---------------------------------------------------------------------------
+# Required environment variables (lazy — validated on first use)
+# ---------------------------------------------------------------------------
+def get_database_url() -> str:
+    """Return DATABASE_URL or raise if unset."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise ValueError(
+            "DATABASE_URL environment variable is required. "
+            "Example: postgresql://user:pass@host:5432/dbname"
+        )
+    return url
+
+
+def get_openai_api_key() -> str:
+    """Return OPENAI_API_KEY or raise if unset."""
+    key = os.environ.get("OPENAI_API_KEY")
+    if not key:
+        raise ValueError("OPENAI_API_KEY environment variable is required.")
+    return key
+
+
+# Backward-compat: modules that read config.DATABASE_URL / config.OPENAI_API_KEY
+# at call time (not import time) still work via these module-level names.
+# They resolve to the current env value on every access through __getattr__.
+_LAZY_VARS = {
+    "DATABASE_URL": get_database_url,
+    "OPENAI_API_KEY": get_openai_api_key,
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY_VARS:
+        return _LAZY_VARS[name]()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # ---------------------------------------------------------------------------
 # OpenAI model settings
