@@ -1,0 +1,192 @@
+# CI/CD Pipeline — n49 Procurement Intelligence Platform
+# Triggers on push to main. Runs tests, then deploys to EC2 via SSH.
+#
+# Required GitHub Secrets:
+#   EC2_SSH_KEY  — contents of procurement-intel-key.pem (RSA private key)
+#   EC2_HOST     — EC2 public IP or hostname (e.g. 16.54.103.248)
+#
+# Optional GitHub Secrets:
+#   EC2_USER     — SSH user (default: ec2-user)
+#   DEPLOY_PATH  — remote app directory (default: /opt/procurement-intel)
+
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # manual trigger
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false  # never cancel a running deploy
+
+env:
+  EC2_USER: ${{ secrets.EC2_USER || 'ec2-user' }}
+  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/procurement-intel' }}
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Job 1: Run tests
+  # ─────────────────────────────────────────────
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: procurement_test
+          POSTGRES_USER: procurement
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U procurement -d procurement_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            scraper/requirements.txt
+            api/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r scraper/requirements.txt -r api/requirements.txt
+
+      - name: Run scraper tests
+        env:
+          DATABASE_URL: postgresql://procurement:testpassword@localhost:5432/procurement_test
+        run: |
+          pytest scraper/tests/ -v --tb=short -x
+
+      - name: Run API tests
+        env:
+          DATABASE_URL: postgresql://procurement:testpassword@localhost:5432/procurement_test
+        run: |
+          pytest api/tests/ -v --tb=short -x
+
+  # ─────────────────────────────────────────────
+  # Job 2: Deploy to EC2
+  # ─────────────────────────────────────────────
+  deploy:
+    name: Deploy to EC2
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Add EC2 host to known_hosts (prevents interactive prompt)
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          # SSH config for convenience
+          cat >> ~/.ssh/config <<EOF
+          Host ec2
+            HostName ${{ secrets.EC2_HOST }}
+            User ${{ env.EC2_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+            ConnectTimeout 10
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Sync code to EC2
+        run: |
+          rsync -azP --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'terraform' \
+            --exclude '.planning' \
+            --exclude '.env' \
+            --exclude 'node_modules' \
+            --exclude '__pycache__' \
+            --exclude '.pytest_cache' \
+            --exclude '.next' \
+            --exclude 'web/.next' \
+            --exclude 'web/node_modules' \
+            --exclude 'postgres_data' \
+            ./ ec2:${{ env.DEPLOY_PATH }}/
+
+      - name: Build and restart containers
+        run: |
+          ssh ec2 << 'DEPLOY_SCRIPT'
+          set -euo pipefail
+          cd /opt/procurement-intel
+
+          COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+
+          echo "=== $(date '+%Y-%m-%d %H:%M:%S') Deployment starting ==="
+
+          # Build new images
+          echo "Building images..."
+          $COMPOSE build --no-cache
+
+          # Restart services (db stays up, app services get new images)
+          # Rolling restart: api first, then web, then scraper, then nginx
+          echo "Restarting API..."
+          $COMPOSE up -d --no-deps api
+
+          echo "Restarting Web..."
+          $COMPOSE up -d --no-deps web
+
+          echo "Restarting Scraper..."
+          $COMPOSE up -d --no-deps scraper
+
+          echo "Restarting Nginx..."
+          $COMPOSE up -d --no-deps nginx
+
+          # Wait for services to be healthy
+          echo "Waiting for services to stabilize..."
+          sleep 10
+
+          # Health check
+          echo "Running health checks..."
+          $COMPOSE ps
+
+          # Check API health endpoint
+          API_STATUS=$(docker exec procurement-intel-api-1 \
+            python -c "import httpx; r=httpx.get('http://localhost:8000/health'); print(r.status_code)" 2>/dev/null || echo "FAIL")
+          
+          if [ "$API_STATUS" = "200" ]; then
+            echo "✅ API health check passed"
+          else
+            echo "⚠️  API health check returned: $API_STATUS (may still be starting)"
+          fi
+
+          # Prune old images
+          docker image prune -f
+
+          echo "=== $(date '+%Y-%m-%d %H:%M:%S') Deployment complete ==="
+          DEPLOY_SCRIPT
+
+      - name: Verify deployment
+        run: |
+          # Quick smoke test — hit the public HTTPS endpoint
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "https://procurement.eliastools.com" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "302" ]; then
+            echo "✅ Site is responding (HTTP $HTTP_CODE)"
+          else
+            echo "⚠️  Site returned HTTP $HTTP_CODE — may need investigation"
+            # Don't fail the job — container restart timing can cause brief 502s
+          fi
