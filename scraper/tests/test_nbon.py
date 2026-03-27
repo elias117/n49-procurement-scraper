@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from scraper.models import PortalRecord
-from scraper.pipeline.nbon import _rows_to_listings, nbon_scrape
+from scraper.pipeline.nbon import _to_listing, nbon_scrape
 
 
 def _make_portal():
@@ -38,63 +38,76 @@ def _setup_playwright_mock(mock_pw_func, page):
 
 
 class TestNbonHelpers:
-    def test_rows_to_listings(self):
-        rows = [
-            {
-                "title": "Supply of Winter Road Salt",
-                "reference number": "NB-2026-015",
-                "category": "Goods",
-                "closing date": "Mar 31, 2026",
-                "href": "/opportunity/15",
-            }
-        ]
+    def test_to_listing_valid_row(self):
+        row = {
+            "title": "Supply of Winter Road Salt",
+            "reference_number": "NB-2026-015",
+            "organization": "Dept of Transportation",
+            "closing_date": "2026/03/31 14:00",
+            "posting_date": "2026/02/01 09:00",
+            "href": "javascript:openWindow('showDisplayDocument?id=15')",
+        }
 
-        listings = _rows_to_listings(rows, "https://nbon-rpanb.gnb.ca/")
+        listing = _to_listing(row, "https://nbon-rpanb.gnb.ca/")
 
-        assert len(listings) == 1
-        assert listings[0].reference_number == "NB-2026-015"
-        assert listings[0].closing_date == "2026-03-31"
-        assert listings[0].source_url == "https://nbon-rpanb.gnb.ca/opportunity/15"
+        assert listing is not None
+        assert listing.reference_number == "NB-2026-015"
+        assert listing.closing_date == "2026-03-31"
+        assert "showDisplayDocument" in listing.source_url
+
+    def test_to_listing_returns_none_without_title(self):
+        row = {"title": None, "reference_number": None}
+        assert _to_listing(row, "https://nbon-rpanb.gnb.ca/") is None
 
 
 class TestNbonScrape:
     @pytest.mark.asyncio
+    @patch("scraper.pipeline.nbon._extract_open_rows")
+    @patch("scraper.pipeline.nbon._open_opportunity_frame")
+    @patch("scraper.pipeline.nbon._ensure_nbon_home")
     @patch("scraper.pipeline.nbon.async_playwright")
-    async def test_nbon_scrape(self, mock_pw_func):
+    async def test_nbon_scrape(self, mock_pw_func, mock_ensure, mock_open_frame, mock_extract):
         portal = _make_portal()
 
-        listing_frame = AsyncMock()
-        listing_frame.url = "https://nbon-rpanb.gnb.ca/listings"
-        listing_frame.evaluate = AsyncMock(
-            return_value=[
-                {
-                    "title": "Supply of Winter Road Salt",
-                    "reference number": "NB-2026-015",
-                    "category": "Goods",
-                    "closing date": "Mar 31, 2026",
-                    "href": "/opportunity/15",
-                }
-            ]
-        )
+        # Mock the frame returned by _open_opportunity_frame
+        frame = MagicMock()
+        frame.url = "https://nbon-rpanb.gnb.ca/listings"
+        mock_open_frame.return_value = frame
 
-        main_frame = AsyncMock()
-        main_frame.url = portal.url
-        main_frame.evaluate = AsyncMock(return_value=[])
+        # Mock extracted rows
+        mock_extract.return_value = [
+            {
+                "title": "Supply of Winter Road Salt",
+                "reference_number": "NB-2026-015",
+                "organization": "Dept of Transportation",
+                "posting_date": "2026/02/01 09:00",
+                "closing_date": "2026/03/31 14:00",
+                "href": "javascript:openWindow('showDisplayDocument?id=15')",
+            }
+        ]
 
         page = AsyncMock()
-        page.goto = AsyncMock()
-        page.wait_for_timeout = AsyncMock()
-        page.url = portal.url
-        page.main_frame = main_frame
-        page.frames = [main_frame, listing_frame]
-
         _setup_playwright_mock(mock_pw_func, page)
 
         result = await nbon_scrape(portal)
 
         assert len(result) == 1
         assert result[0].reference_number == "NB-2026-015"
-        main_frame.evaluate.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("scraper.pipeline.nbon._open_opportunity_frame")
+    @patch("scraper.pipeline.nbon._ensure_nbon_home")
+    @patch("scraper.pipeline.nbon.async_playwright")
+    async def test_nbon_scrape_no_frame(self, mock_pw_func, mock_ensure, mock_open_frame):
+        """Returns empty when no opportunity frame is found."""
+        portal = _make_portal()
+        mock_open_frame.return_value = None
+
+        page = AsyncMock()
+        _setup_playwright_mock(mock_pw_func, page)
+
+        result = await nbon_scrape(portal)
+        assert result == []
 
     @pytest.mark.asyncio
     @patch("scraper.pipeline.nbon.async_playwright", None)

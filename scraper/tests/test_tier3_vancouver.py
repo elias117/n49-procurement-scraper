@@ -38,25 +38,18 @@ def _setup_playwright_mock(mock_pw_func, page):
 
 
 SAMPLE_VANCOUVER_HTML = """
-<div>
-  <a class="btn btn-link btn-large btn-link-header" href="https://example.com/event/1">Fire Life Safety System Maintenance Services</a>
-  <div class="phx table-row-layout">
-    <div class="phx table-cell-layout"><div class="phx data-row-name">Open</div></div>
-    <div class="phx table-cell-layout"><div class="phx data-row-content">03/03/2026 3:00 PM PST</div></div>
-  </div>
-  <div class="phx table-row-layout">
-    <div class="phx table-cell-layout"><div class="phx data-row-name">Close</div></div>
-    <div class="phx table-cell-layout"><div class="phx data-row-content">07/04/2026 3:00 PM PDT</div></div>
-  </div>
-  <div class="phx table-row-layout">
-    <div class="phx table-cell-layout"><div class="phx data-row-name">Type</div></div>
-    <div class="phx table-cell-layout"><div class="phx data-row-content">RFP</div></div>
-  </div>
-  <div class="phx table-row-layout">
-    <div class="phx table-cell-layout"><div class="phx data-row-name">Number</div></div>
-    <div class="phx table-cell-layout"><div class="phx data-row-content">PS20251541-REFM-RFP</div></div>
-  </div>
-</div>
+<table class="table phx table-hover no-column-borders">
+  <tr>
+    <td>Open</td>
+    <td>
+      <a href="/ViewSourcingEvent?id=1">Fire Life Safety System Maintenance Services</a>
+      Open 03/03/2026 3:00 PM
+      Close 07/04/2026 3:00 PM
+      Type RFP
+      Number PS20251541-REFM-RFP
+    </td>
+  </tr>
+</table>
 """
 
 
@@ -73,18 +66,19 @@ class TestVancouverParsing:
         assert listing.title == "Fire Life Safety System Maintenance Services"
         assert listing.reference_number == "PS20251541-REFM-RFP"
         assert listing.closing_date == "2026-04-07"
-        assert listing.source_url == "https://example.com/event/1"
+        assert "ViewSourcingEvent" in listing.source_url
 
 
 class TestVancouverScrape:
     @pytest.mark.asyncio
+    @patch("scraper.pipeline.tier3.vancouver._open_vancouver_listings_page")
     @patch("scraper.pipeline.tier3.vancouver.async_playwright")
-    async def test_vancouver_scrape(self, mock_pw_func):
+    async def test_vancouver_scrape(self, mock_pw_func, mock_open_page):
         portal = _make_portal()
 
+        mock_open_page.return_value = "https://bids.sciquest.com/apps/Router/PublicEvent"
+
         page = AsyncMock()
-        page.goto = AsyncMock()
-        page.wait_for_timeout = AsyncMock()
         page.content = AsyncMock(return_value=SAMPLE_VANCOUVER_HTML)
         page.url = portal.url
 

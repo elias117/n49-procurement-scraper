@@ -26,10 +26,40 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────
+  # Job 1: Run tests
+  # ─────────────────────────────────────────────
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install scraper dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Install API dependencies
+        run: pip install -r api/requirements.txt
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost/dummy
+          OPENAI_API_KEY: sk-test-dummy
+        run: python -m pytest scraper/tests/ api/tests/ -q --tb=short
+
+  # ─────────────────────────────────────────────
   # Job 2: Deploy to EC2
   # ─────────────────────────────────────────────
   deploy:
     name: Deploy to EC2
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.ref == 'refs/heads/main'
