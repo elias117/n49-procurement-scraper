@@ -21,22 +21,23 @@ def test_health_returns_200(client):
 
 
 def test_health_db_error(client):
-    """Health endpoint returns unhealthy on DB error."""
+    """Health endpoint returns 503 with unhealthy status on DB error."""
     with patch("api.routers.health.get_connection", side_effect=Exception("conn failed")):
         response = client.get("/health")
-    assert response.status_code == 200
+    assert response.status_code == 503
     data = response.json()
     assert data["status"] == "unhealthy"
+    assert "conn failed" in data["error"]
 
 
 def test_health_closes_connection_on_query_error(client):
-    """Connection should still close if cursor/query work fails."""
+    """Connection should still close if cursor/query work fails. Returns 503."""
     mock_conn = MagicMock()
     mock_conn.cursor.side_effect = Exception("query failed")
 
     with patch("api.routers.health.get_connection", return_value=mock_conn):
         response = client.get("/health")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     assert response.json()["status"] == "unhealthy"
     mock_conn.close.assert_called_once()
