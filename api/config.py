@@ -5,6 +5,8 @@ Loads settings from environment variables. Required variables are validated
 lazily via helper functions so that importing this module never fails — tests
 can import any module without needing real credentials.
 """
+from __future__ import annotations
+
 import os
 import logging
 
