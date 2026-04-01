@@ -36,7 +36,7 @@ def get_listing(listing_id: uuid.UUID):
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT l.id, l.source_portal, l.source_listing_id, l.title,
+                SELECT l.id, l.source_portal, l.source_listing_id, l.reference_number, l.title,
                        l.description, l.status, l.language,
                        l.posting_date, l.closing_date, l.amended_date,
                        l.province, l.raw_location,

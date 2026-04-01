@@ -91,6 +91,7 @@ def search_listings(
         ListingResult(
             id=str(row["id"]),
             title=row["title"],
+            reference_number=row.get("reference_number"),
             source_portal_name=row["portal_name"],
             closing_date=row.get("closing_date"),
             province=row.get("province"),
