@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class ListingResult(BaseModel):
     id: str
     title: str
+    reference_number: Optional[str] = None
     source_portal_name: str
     closing_date: Optional[datetime] = None
     province: Optional[str] = None

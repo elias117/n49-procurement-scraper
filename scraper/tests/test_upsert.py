@@ -12,6 +12,7 @@ import pytest
 from scraper.db import (
     CROSS_PORTAL_DEDUP_SQL,
     UPSERT_SQL,
+    _listing_to_tuple,
     check_auto_disable,
     complete_scrape_run,
     deduplicate_cross_portal_listings,
@@ -45,6 +46,31 @@ def _make_listing(
 # ---------------------------------------------------------------------------
 # UPSERT SQL structure tests
 # ---------------------------------------------------------------------------
+
+
+class TestListingToTuple:
+    """Tests for _listing_to_tuple ensuring all fields round-trip correctly."""
+
+    def test_reference_number_included_in_tuple(self):
+        """reference_number must appear in the tuple at the correct position."""
+        listing = _make_listing(
+            title="Test RFP",
+            reference_number="EN578-200001/A",
+        )
+        t = _listing_to_tuple(listing)
+        # Tuple order: source_portal, source_listing_id, reference_number, title, ...
+        assert t[2] == "EN578-200001/A", "reference_number should be at index 2"
+        assert t[3] == "Test RFP", "title should be at index 3"
+
+    def test_reference_number_none_by_default(self):
+        """When reference_number is not set, it should be None in the tuple."""
+        listing = _make_listing(title="No Ref")
+        t = _listing_to_tuple(listing)
+        assert t[2] is None, "reference_number should default to None"
+
+    def test_upsert_sql_includes_reference_number_column(self):
+        """UPSERT SQL must include reference_number in the column list."""
+        assert "reference_number" in UPSERT_SQL
 
 
 class TestUpsertSql:

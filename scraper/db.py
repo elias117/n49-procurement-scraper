@@ -168,7 +168,7 @@ def check_auto_disable(conn, portal_id: str) -> bool:
 # Uses a CTE with RETURNING to distinguish new vs updated rows.
 UPSERT_SQL = """
 WITH input_rows(
-    source_portal, source_listing_id, title, description, status,
+    source_portal, source_listing_id, reference_number, title, description, status,
     language, posting_date, closing_date, amended_date,
     province, raw_location, classification_codes,
     value_min, value_max, contact_info, documents,
@@ -178,7 +178,7 @@ WITH input_rows(
 ),
 upserted AS (
     INSERT INTO listings (
-        source_portal, source_listing_id, title, description, status,
+        source_portal, source_listing_id, reference_number, title, description, status,
         language, posting_date, closing_date, amended_date,
         province, raw_location, classification_codes,
         value_min, value_max, contact_info, documents,
@@ -186,7 +186,7 @@ upserted AS (
         last_scraped_at, created_at, updated_at
     )
     SELECT
-        source_portal::uuid, source_listing_id, title, description,
+        source_portal::uuid, source_listing_id, reference_number, title, description,
         COALESCE(status, 'open'), language,
         posting_date::timestamptz, closing_date::timestamptz,
         amended_date::timestamptz,
@@ -198,6 +198,7 @@ upserted AS (
     ON CONFLICT (source_portal, source_listing_id) DO UPDATE SET
         title = EXCLUDED.title,
         description = EXCLUDED.description,
+        reference_number = EXCLUDED.reference_number,
         status = COALESCE(EXCLUDED.status, listings.status),
         language = EXCLUDED.language,
         posting_date = EXCLUDED.posting_date,
@@ -242,6 +243,7 @@ def _listing_to_tuple(listing: ListingRecord) -> tuple:
     return (
         listing.source_portal,
         listing.source_listing_id,
+        listing.reference_number,
         listing.title,
         listing.description,
         listing.status,
@@ -299,7 +301,7 @@ def upsert_listings(conn, portal_id: str, listings: list) -> dict:
             values,
             template=(
                 "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-                "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             ),
             page_size=1000,
             fetch=True,
