@@ -30,12 +30,23 @@ def get_openai_api_key() -> str | None:
     return os.environ.get("OPENAI_API_KEY")
 
 
+def get_cors_allowed_origins() -> list[str]:
+    """Return CORS allowed origins parsed from env, with a safe default."""
+    raw = os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "https://procurement.eliastools.com",
+    )
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return origins or ["https://procurement.eliastools.com"]
+
+
 # Backward-compat: modules that read config.DATABASE_URL / config.OPENAI_API_KEY
 # at call time (not import time) still work via these module-level names.
 # They resolve to the current env value on every access through __getattr__.
 _LAZY_VARS = {
     "DATABASE_URL": get_database_url,
     "OPENAI_API_KEY": get_openai_api_key,
+    "CORS_ALLOWED_ORIGINS": get_cors_allowed_origins,
 }
 
 
