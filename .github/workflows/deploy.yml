@@ -52,7 +52,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost/dummy
           OPENAI_API_KEY: sk-test-dummy
-        run: python -m pytest scraper/tests/ api/tests/ -q --tb=short
+        run: python -m pytest scraper/tests/ api/tests/ db/tests/ -q --tb=short
 
   # ─────────────────────────────────────────────
   # Job 2: Deploy to EC2
@@ -132,9 +132,21 @@ jobs:
           echo "Restarting Nginx..."
           $COMPOSE up -d --no-deps nginx
 
-          # Wait for services to be healthy
+          # Wait for DB to be healthy before running migrations
+          echo "Waiting for database..."
+          sleep 5
+
+          # Run pending database migrations
+          echo "Running database migrations..."
+          docker exec procurement-intel-api-1 \
+            python /app/db/migrate.py 2>&1 || {
+            echo "⚠️  Migration runner failed — check logs"
+            # Don't fail deploy; migrations may need manual intervention
+          }
+
+          # Wait for services to stabilize after migrations
           echo "Waiting for services to stabilize..."
-          sleep 10
+          sleep 5
 
           # Health check
           echo "Running health checks..."
