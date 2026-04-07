@@ -22,6 +22,11 @@ interface ResultCardProps {
  * and will be shown in the detail side panel (Plan 4-03).
  */
 export function ResultCard({ listing, onClick, isNew }: ResultCardProps) {
+  const referenceNumber = listing.reference_number?.trim();
+  const sourceListingId = listing.source_listing_id?.trim();
+  const crossReferenceValue = referenceNumber || sourceListingId;
+  const crossReferenceLabel = referenceNumber ? "Reference #" : "Source ID";
+
   return (
     <div
       role="button"
@@ -49,6 +54,15 @@ export function ResultCard({ listing, onClick, isNew }: ResultCardProps) {
           </Badge>
         )}
       </div>
+
+      {crossReferenceValue && (
+        <div className="mb-2 text-xs leading-relaxed">
+          <span className="text-muted-foreground">{crossReferenceLabel}: </span>
+          <span className="font-mono font-medium text-foreground break-all">
+            {crossReferenceValue}
+          </span>
+        </div>
+      )}
 
       {/* Metadata row */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mb-2">

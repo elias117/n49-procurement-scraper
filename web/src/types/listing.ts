@@ -25,7 +25,8 @@ export interface ClassificationCode {
 export interface ListingDetail {
   id: string;
   source_portal: string;
-  source_listing_id: string;
+  source_listing_id: string | null;
+  reference_number: string | null;
   title: string;
   description: string | null;
   status: string;

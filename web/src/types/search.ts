@@ -5,6 +5,8 @@
 export interface ListingResult {
   id: string;
   title: string;
+  reference_number?: string | null;
+  source_listing_id?: string | null;
   source_portal_name: string;
   closing_date: string | null;
   province: string | null;

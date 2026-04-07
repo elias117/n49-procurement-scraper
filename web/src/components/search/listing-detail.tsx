@@ -113,6 +113,9 @@ export function ListingDetailSheet({
   onClose,
   loading,
 }: ListingDetailSheetProps) {
+  const referenceNumber = listing?.reference_number?.trim() || null;
+  const sourceListingId = listing?.source_listing_id?.trim() || null;
+
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <SheetContent
@@ -185,6 +188,29 @@ export function ListingDetailSheet({
                 {/* e. METADATA */}
                 <Separator />
                 <div className="space-y-3">
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Cross-reference IDs
+                    </p>
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-start gap-2">
+                        <span className="w-20 shrink-0 text-muted-foreground">
+                          Reference #
+                        </span>
+                        <span className="font-mono font-medium break-all">
+                          {referenceNumber || "Not provided"}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-20 shrink-0 text-muted-foreground">
+                          Source ID
+                        </span>
+                        <span className="font-mono font-medium break-all">
+                          {sourceListingId || "Not provided"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 text-sm">
                     <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="text-muted-foreground">Province:</span>
