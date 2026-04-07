@@ -40,6 +40,32 @@ def portal_health():
                         MAX(lr.started_at) AS last_run_at
                     FROM latest_runs lr
                     GROUP BY lr.portal_id
+                ),
+                completed_runs AS (
+                    SELECT
+                        sr.portal_id,
+                        sr.completed_at,
+                        sr.started_at,
+                        sr.listings_found,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY sr.portal_id
+                            ORDER BY sr.completed_at DESC NULLS LAST, sr.started_at DESC
+                        ) AS completed_rn
+                    FROM scrape_runs sr
+                    WHERE sr.status = 'completed'
+                ),
+                completed_stats AS (
+                    SELECT
+                        cr.portal_id,
+                        MAX(cr.listings_found) FILTER (
+                            WHERE cr.completed_rn = 1
+                        ) AS latest_completed_listings_found,
+                        COUNT(*) FILTER (
+                            WHERE cr.completed_rn > 1
+                            AND COALESCE(cr.listings_found, 0) > 0
+                        ) AS historical_nonzero_runs
+                    FROM completed_runs cr
+                    GROUP BY cr.portal_id
                 )
                 SELECT
                     p.id AS portal_id,
@@ -52,6 +78,12 @@ def portal_health():
                     ps.recent_total,
                     ps.last_success_at,
                     ps.last_run_at,
+                    cs.latest_completed_listings_found,
+                    COALESCE(cs.historical_nonzero_runs, 0) AS historical_nonzero_runs,
+                    (
+                        cs.latest_completed_listings_found = 0
+                        AND COALESCE(cs.historical_nonzero_runs, 0) > 0
+                    ) AS zero_result_regression,
                     lr.status AS last_run_status,
                     lr.listings_found,
                     lr.listings_new,
@@ -62,6 +94,7 @@ def portal_health():
                         AS total_listings
                 FROM portals p
                 LEFT JOIN portal_stats ps ON ps.portal_id = p.id
+                LEFT JOIN completed_stats cs ON cs.portal_id = p.id
                 LEFT JOIN latest_runs lr
                     ON lr.portal_id = p.id AND lr.rn = 1
                 ORDER BY p.name

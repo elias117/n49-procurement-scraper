@@ -23,7 +23,13 @@ import {
 } from "@/components/health/status-badge";
 import { formatDate } from "@/lib/format";
 import type { PortalHealth } from "@/types/health";
-import { CheckCircle, XCircle, Loader2, ExternalLink } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Loader2,
+  ExternalLink,
+  AlertTriangle,
+} from "lucide-react";
 
 interface PortalTableProps {
   portals: PortalHealth[];
@@ -63,7 +69,7 @@ function SkeletonRows() {
     <>
       {Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
-          {Array.from({ length: 10 }).map((_, j) => (
+          {Array.from({ length: 11 }).map((_, j) => (
             <TableCell key={j}>
               <Skeleton className="h-5 w-full" />
             </TableCell>
@@ -77,14 +83,12 @@ function SkeletonRows() {
 export function PortalTable({ portals, loading }: PortalTableProps) {
   const sorted = sortPortals(portals);
 
-  const healthyCount = portals.filter(
-    (p) => getPortalStatus(p) === "healthy"
-  ).length;
-  const warningCount = portals.filter(
-    (p) => getPortalStatus(p) === "warning"
-  ).length;
-  const staleCount = portals.filter(
-    (p) => getPortalStatus(p) === "stale"
+  const statuses = portals.map(getPortalStatus);
+  const healthyCount = statuses.filter((status) => status === "healthy").length;
+  const warningCount = statuses.filter((status) => status === "warning").length;
+  const staleCount = statuses.filter((status) => status === "stale").length;
+  const regressionCount = statuses.filter(
+    (status) => status === "regression"
   ).length;
 
   return (
@@ -94,13 +98,15 @@ export function PortalTable({ portals, loading }: PortalTableProps) {
           <span>{portals.length} portals total</span>
           <span className="text-emerald-600">{healthyCount} healthy</span>
           <span className="text-amber-600">{warningCount} warnings</span>
-          <span className="text-red-600">{staleCount} errors</span>
+          <span className="text-red-700">{regressionCount} regressions</span>
+          <span className="text-red-600">{staleCount} stale</span>
         </div>
 
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Status</TableHead>
+              <TableHead>Regression</TableHead>
               <TableHead>Portal Name</TableHead>
               <TableHead>Level</TableHead>
               <TableHead>Province</TableHead>
@@ -117,7 +123,7 @@ export function PortalTable({ portals, loading }: PortalTableProps) {
               <SkeletonRows />
             ) : sorted.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                   No portals found.
                 </TableCell>
               </TableRow>
@@ -130,7 +136,21 @@ export function PortalTable({ portals, loading }: PortalTableProps) {
                       recentFailures={portal.recent_failures ?? 0}
                       recentTotal={portal.recent_total ?? 0}
                       lastSuccessAt={portal.last_success_at}
+                      zeroResultRegression={portal.zero_result_regression}
                     />
+                  </TableCell>
+                  <TableCell>
+                    {portal.zero_result_regression ? (
+                      <div className="flex items-center gap-1.5 text-red-700 dark:text-red-300">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span className="text-xs font-medium">
+                          Latest completed run found 0 after{" "}
+                          {portal.historical_nonzero_runs} non-zero runs
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <a

@@ -13,6 +13,9 @@ export interface PortalHealth {
   recent_total: number | null;
   last_success_at: string | null;
   last_run_at: string | null;
+  latest_completed_listings_found: number | null;
+  historical_nonzero_runs: number;
+  zero_result_regression: boolean;
   last_run_status: string | null;
   listings_found: number | null;
   listings_new: number | null;
