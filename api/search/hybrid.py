@@ -35,7 +35,7 @@ def _build_browse_sql(
 
     return f"""
 WITH filtered AS (
-    SELECT id, title, reference_number, description, source_portal, closing_date,
+    SELECT id, title, reference_number, source_listing_id, description, source_portal, closing_date,
            province, value_min, value_max, posting_date,
            classification_codes
     FROM listings
@@ -45,7 +45,7 @@ total AS (
     SELECT COUNT(*) AS cnt FROM filtered
 )
 SELECT
-    f.id, f.title, f.reference_number, f.description, f.closing_date,
+    f.id, f.title, f.reference_number, f.source_listing_id, f.description, f.closing_date,
     f.province, f.value_min, f.value_max, f.posting_date,
     f.classification_codes,
     p.name AS portal_name,
@@ -65,7 +65,7 @@ def _build_keyword_only_sql(filter_clause: str, sort_clause: str) -> str:
     """Build SQL for keyword-only search (no embedding available)."""
     return f"""
 WITH filtered AS (
-    SELECT id, title, reference_number, description, source_portal, closing_date,
+    SELECT id, title, reference_number, source_listing_id, description, source_portal, closing_date,
            province, value_min, value_max, posting_date,
            classification_codes, search_vector
     FROM listings
@@ -83,7 +83,7 @@ total AS (
     SELECT COUNT(*) AS cnt FROM keyword_search
 )
 SELECT
-    f.id, f.title, f.reference_number, f.description, f.closing_date,
+    f.id, f.title, f.reference_number, f.source_listing_id, f.description, f.closing_date,
     f.province, f.value_min, f.value_max, f.posting_date,
     f.classification_codes,
     p.name AS portal_name,
@@ -108,7 +108,7 @@ def _build_hybrid_sql(filter_clause: str, sort_clause: str) -> str:
     """Build the full hybrid keyword + semantic RRF search SQL."""
     return f"""
 WITH filtered AS (
-    SELECT id, title, reference_number, description, source_portal, closing_date,
+    SELECT id, title, reference_number, source_listing_id, description, source_portal, closing_date,
            province, value_min, value_max, posting_date,
            classification_codes, embedding, search_vector
     FROM listings
@@ -146,7 +146,7 @@ total AS (
     SELECT COUNT(*) AS cnt FROM ranked
 )
 SELECT
-    f.id, f.title, f.reference_number, f.description, f.closing_date,
+    f.id, f.title, f.reference_number, f.source_listing_id, f.description, f.closing_date,
     f.province, f.value_min, f.value_max, f.posting_date,
     f.classification_codes,
     p.name AS portal_name,
@@ -171,9 +171,9 @@ def _build_exact_match_sql(filter_clause: str) -> str:
     """Build SQL for exact match mode (ILIKE + phraseto_tsquery)."""
     return f"""
 WITH filtered AS (
-    SELECT id, title, reference_number, description, source_portal, closing_date,
+    SELECT id, title, reference_number, source_listing_id, description, source_portal, closing_date,
            province, value_min, value_max, posting_date,
-           classification_codes, source_listing_id
+           classification_codes
     FROM listings
     WHERE {filter_clause}
 ),
@@ -193,7 +193,7 @@ total AS (
     SELECT COUNT(*) AS cnt FROM matched
 )
 SELECT
-    f.id, f.title, f.reference_number, f.description, f.closing_date,
+    f.id, f.title, f.reference_number, f.source_listing_id, f.description, f.closing_date,
     f.province, f.value_min, f.value_max, f.posting_date,
     f.classification_codes,
     p.name AS portal_name,
