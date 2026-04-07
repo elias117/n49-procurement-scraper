@@ -55,6 +55,9 @@ def test_portal_health_returns_list(client):
             "recent_total": 5,
             "last_success_at": now,
             "last_run_at": now,
+            "latest_completed_listings_found": 42,
+            "historical_nonzero_runs": 7,
+            "zero_result_regression": False,
             "last_run_status": "completed",
             "listings_found": 42,
             "listings_new": 3,
@@ -79,6 +82,9 @@ def test_portal_health_returns_list(client):
     assert data[0]["enabled"] is True
     assert data[0]["recent_failures"] == 0
     assert data[0]["listings_found"] == 42
+    assert data[0]["latest_completed_listings_found"] == 42
+    assert data[0]["historical_nonzero_runs"] == 7
+    assert data[0]["zero_result_regression"] is False
     assert data[0]["total_listings"] == 150
 
 
@@ -109,6 +115,9 @@ def test_portal_health_multiple_portals(client):
             "recent_total": 5,
             "last_success_at": now,
             "last_run_at": now,
+            "latest_completed_listings_found": 10,
+            "historical_nonzero_runs": 4,
+            "zero_result_regression": False,
             "last_run_status": "completed",
             "listings_found": 10,
             "listings_new": 1,
@@ -128,6 +137,9 @@ def test_portal_health_multiple_portals(client):
             "recent_total": 5,
             "last_success_at": now,
             "last_run_at": now,
+            "latest_completed_listings_found": 42,
+            "historical_nonzero_runs": 12,
+            "zero_result_regression": False,
             "last_run_status": "completed",
             "listings_found": 42,
             "listings_new": 3,
@@ -165,6 +177,9 @@ def test_portal_health_disabled_portal(client):
             "recent_total": 5,
             "last_success_at": None,
             "last_run_at": None,
+            "latest_completed_listings_found": None,
+            "historical_nonzero_runs": 0,
+            "zero_result_regression": False,
             "last_run_status": None,
             "listings_found": None,
             "listings_new": None,
@@ -203,6 +218,9 @@ def test_portal_health_failed_last_run(client):
             "recent_total": 5,
             "last_success_at": datetime(2026, 3, 29, 5, 0, tzinfo=timezone.utc),
             "last_run_at": datetime(2026, 3, 30, 5, 0, tzinfo=timezone.utc),
+            "latest_completed_listings_found": 24,
+            "historical_nonzero_runs": 9,
+            "zero_result_regression": False,
             "last_run_status": "failed",
             "listings_found": None,
             "listings_new": None,
@@ -223,7 +241,51 @@ def test_portal_health_failed_last_run(client):
     data = response.json()
     assert data[0]["last_run_status"] == "failed"
     assert data[0]["error_message"] == "HTTP 502 from SEAO API"
+    assert data[0]["latest_completed_listings_found"] == 24
+    assert data[0]["historical_nonzero_runs"] == 9
+    assert data[0]["zero_result_regression"] is False
     assert data[0]["total_listings"] == 80
+
+
+def test_portal_health_zero_result_regression(client):
+    """GET /health/portals flags regression when latest completed run has 0 listings."""
+    rows = [
+        {
+            "portal_id": str(uuid.uuid4()),
+            "name": "BC Bid",
+            "url": "https://www.bcbid.gov.bc.ca",
+            "level": "provincial",
+            "province": "BC",
+            "enabled": True,
+            "recent_failures": 0,
+            "recent_total": 5,
+            "last_success_at": datetime(2026, 4, 1, 5, 0, tzinfo=timezone.utc),
+            "last_run_at": datetime(2026, 4, 2, 5, 0, tzinfo=timezone.utc),
+            "latest_completed_listings_found": 0,
+            "historical_nonzero_runs": 11,
+            "zero_result_regression": True,
+            "last_run_status": "completed",
+            "listings_found": 0,
+            "listings_new": 0,
+            "listings_updated": 0,
+            "duration_seconds": 9.4,
+            "error_message": None,
+            "total_listings": 330,
+        }
+    ]
+
+    with patch(
+        "api.routers.portal_health.db_connection",
+        return_value=_mock_portal_health_db(rows),
+    ):
+        response = client.get("/health/portals")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["latest_completed_listings_found"] == 0
+    assert data[0]["historical_nonzero_runs"] == 11
+    assert data[0]["zero_result_regression"] is True
 
 
 # ---------------------------------------------------------------------------

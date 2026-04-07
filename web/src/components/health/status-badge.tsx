@@ -3,12 +3,19 @@
 import { Badge } from "@/components/ui/badge";
 import type { PortalHealth } from "@/types/health";
 
-export type PortalStatus = "healthy" | "warning" | "stale" | "unknown" | "running";
+export type PortalStatus =
+  | "regression"
+  | "healthy"
+  | "warning"
+  | "stale"
+  | "unknown"
+  | "running";
 
 /**
  * Determine the health status of a portal based on staleness thresholds.
  *
  * LOCKED thresholds:
+ *  - REGRESSION (red): Latest completed run found 0 listings after prior non-zero completed runs
  *  - HEALTHY (green): Last run succeeded AND <3 recent failures AND last success within 7 days
  *  - WARNING (amber): 3+ failures in last 5 runs (recent_failures >= 3)
  *  - STALE/ERROR (red): 7+ days since last success
@@ -24,6 +31,11 @@ export function getPortalStatus(portal: PortalHealth): PortalStatus {
   // Currently running
   if (portal.last_run_status === "running") {
     return "running";
+  }
+
+  // Silent regression: latest completed run yielded 0 after historical non-zero runs
+  if (portal.zero_result_regression) {
+    return "regression";
   }
 
   // Check staleness: 7+ days since last success
@@ -52,6 +64,10 @@ const statusConfig: Record<
   PortalStatus,
   { label: string; className: string }
 > = {
+  regression: {
+    label: "Regression",
+    className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  },
   healthy: {
     label: "Healthy",
     className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
@@ -76,11 +92,12 @@ const statusConfig: Record<
 
 /** Sort priority: lower = higher in table */
 export const STATUS_SORT_ORDER: Record<PortalStatus, number> = {
-  stale: 0,
-  warning: 1,
-  running: 2,
-  unknown: 3,
-  healthy: 4,
+  regression: 0,
+  stale: 1,
+  warning: 2,
+  running: 3,
+  unknown: 4,
+  healthy: 5,
 };
 
 interface StatusBadgeProps {
@@ -88,6 +105,7 @@ interface StatusBadgeProps {
   recentFailures: number;
   recentTotal: number;
   lastSuccessAt: string | null;
+  zeroResultRegression: boolean;
 }
 
 export function StatusBadge({
@@ -95,12 +113,14 @@ export function StatusBadge({
   recentFailures,
   recentTotal,
   lastSuccessAt,
+  zeroResultRegression,
 }: StatusBadgeProps) {
   const portal = {
     last_run_status: lastStatus,
     recent_failures: recentFailures,
     recent_total: recentTotal,
     last_success_at: lastSuccessAt,
+    zero_result_regression: zeroResultRegression,
   } as PortalHealth;
 
   const status = getPortalStatus(portal);
