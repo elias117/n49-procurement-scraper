@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
 // Auth removed — dashboard is publicly accessible
-export function middleware(request: NextRequest) {
+export function middleware() {
   return NextResponse.next();
 }
 
