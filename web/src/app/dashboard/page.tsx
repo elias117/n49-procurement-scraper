@@ -55,13 +55,20 @@ function DashboardContent() {
     useListingDetail(selectedListingId);
 
   // "New" badge: stored in localStorage so it persists without auth
-  const [lastVisitedAt, setLastVisitedAt] = useState<string | null>(null);
+  const [lastVisitedAt] = useState<string | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    try {
+      return localStorage.getItem(LAST_VISITED_KEY);
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     try {
-      // Read the PREVIOUS last_visited_at for "New" badge comparison
-      const prev = localStorage.getItem(LAST_VISITED_KEY);
-      setLastVisitedAt(prev);
       // Update to NOW (for next visit)
       localStorage.setItem(LAST_VISITED_KEY, new Date().toISOString());
     } catch {
