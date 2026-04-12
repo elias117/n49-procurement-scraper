@@ -19,6 +19,8 @@ Monitors 60+ Canadian government procurement portals nightly, surfaces translati
 
 **Scraper** — Playwright-based deterministic parsers (no LLM in the pipeline). Handles BidsAndTenders, SEAO, CanadaBuys, MERX, BC Bid, SaskTenders, NBON, APC, Ariba, and tier-3 municipal portals. Runs inside Xvfb (non-headless) because procurement portals 403-block headless browsers.
 
+Before each portal scrape, the orchestrator checks the portal's `robots.txt` using a conservative bot user agent. If `robots.txt` explicitly disallows the portal path, that portal is skipped and logged. If `robots.txt` cannot be fetched or parsed, the scraper fails open (portal is allowed) and logs the error-based allow decision for auditability.
+
 **API** — FastAPI with hybrid search (tsvector keyword + pgvector cosine similarity, merged via Reciprocal Rank Fusion). Filters by region, portal, date range, contract value, and classification codes.
 
 **Web** — Next.js 14 with NextAuth, search dashboard, listing detail, and portal health monitoring.

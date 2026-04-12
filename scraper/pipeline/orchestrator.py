@@ -37,6 +37,7 @@ from scraper.pipeline.sasktenders import sasktenders_scrape
 from scraper.pipeline.bcbid import bcbid_scrape
 from scraper.pipeline.nbon import nbon_scrape
 from scraper.pipeline.browser_scraper import browser_scrape, BrowserScrapeResult
+from scraper.pipeline.robots import is_scraping_allowed_by_robots
 from scraper.pipeline.validation import validate_and_score
 from scraper.pipeline.embeddings import generate_embeddings
 
@@ -296,6 +297,21 @@ async def run_pipeline(
             logger.info(
                 "--- Processing portal: %s (%s) ---", portal.name, portal.url
             )
+
+            if not is_scraping_allowed_by_robots(portal.url):
+                logger.warning(
+                    "Portal %s skipped: robots.txt disallows %s",
+                    portal.name,
+                    portal.url,
+                )
+                results[portal.name] = {
+                    "found": 0,
+                    "new": 0,
+                    "updated": 0,
+                    "skipped": "robots_txt_disallow",
+                }
+                continue
+
             stats = await process_portal(
                 conn, portal,
                 keywords=keywords,
@@ -321,14 +337,16 @@ async def run_pipeline(
         total_new = sum(r.get("new", 0) for r in results.values())
         total_updated = sum(r.get("updated", 0) for r in results.values())
         errors = sum(1 for r in results.values() if "error" in r)
+        skipped = sum(1 for r in results.values() if "skipped" in r)
 
         logger.info(
-            "Pipeline complete: %d portals, %d found, %d new, %d updated, %d errors",
+            "Pipeline complete: %d portals, %d found, %d new, %d updated, %d errors, %d skipped",
             len(results),
             total_found,
             total_new,
             total_updated,
             errors,
+            skipped,
         )
 
         return results
