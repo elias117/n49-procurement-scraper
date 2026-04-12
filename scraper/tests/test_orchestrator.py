@@ -764,6 +764,10 @@ class TestProcessPortal:
 
 class TestRunPipeline:
     @patch(
+        "scraper.pipeline.orchestrator.is_scraping_allowed_by_robots",
+        return_value=True,
+    )
+    @patch(
         "scraper.pipeline.orchestrator.deduplicate_cross_portal_listings",
         return_value=0,
     )
@@ -780,6 +784,7 @@ class TestRunPipeline:
         mock_load_kw,
         mock_load_kw_cat,
         mock_cross_portal_dedup,
+        mock_robots_gate,
     ):
         """run_pipeline processes all enabled portals."""
         mock_conn = MagicMock()
@@ -809,7 +814,12 @@ class TestRunPipeline:
         assert "Portal1" in result
         assert "Portal2" in result
         mock_cross_portal_dedup.assert_called_once_with(mock_conn)
+        assert mock_robots_gate.call_count == 3
 
+    @patch(
+        "scraper.pipeline.orchestrator.is_scraping_allowed_by_robots",
+        return_value=True,
+    )
     @patch(
         "scraper.pipeline.orchestrator.deduplicate_cross_portal_listings",
         return_value=0,
@@ -827,6 +837,7 @@ class TestRunPipeline:
         mock_load_kw,
         mock_load_kw_cat,
         mock_cross_portal_dedup,
+        mock_robots_gate,
     ):
         """run_pipeline with portal_name runs only that portal."""
         mock_conn = MagicMock()
@@ -857,6 +868,7 @@ class TestRunPipeline:
         assert len(result) == 1
         assert "CanadaBuys" in result
         mock_cross_portal_dedup.assert_called_once_with(mock_conn)
+        mock_robots_gate.assert_called_once_with("https://canadabuys.canada.ca")
 
     @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
     @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
@@ -878,6 +890,10 @@ class TestRunPipeline:
             )
 
     @patch(
+        "scraper.pipeline.orchestrator.is_scraping_allowed_by_robots",
+        return_value=True,
+    )
+    @patch(
         "scraper.pipeline.orchestrator.deduplicate_cross_portal_listings",
         return_value=0,
     )
@@ -894,6 +910,7 @@ class TestRunPipeline:
         mock_load_kw,
         mock_load_kw_cat,
         mock_cross_portal_dedup,
+        mock_robots_gate,
     ):
         """A failed portal does not prevent other portals from processing."""
         mock_conn = MagicMock()
@@ -933,6 +950,117 @@ class TestRunPipeline:
         assert mock_process.call_count == 2
         assert "error" in result["FailPortal"]
         assert result["GoodPortal"]["found"] == 10
+        mock_cross_portal_dedup.assert_called_once_with(mock_conn)
+        assert mock_robots_gate.call_count == 2
+
+    @patch(
+        "scraper.pipeline.orchestrator.is_scraping_allowed_by_robots",
+        side_effect=[False, True],
+    )
+    @patch(
+        "scraper.pipeline.orchestrator.deduplicate_cross_portal_listings",
+        return_value=0,
+    )
+    @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
+    @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
+    @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
+    @patch("scraper.pipeline.orchestrator.get_enabled_portals")
+    @patch("scraper.pipeline.orchestrator.db_connection")
+    def test_run_pipeline_skips_portal_disallowed_by_robots(
+        self,
+        mock_db_ctx,
+        mock_get_portals,
+        mock_process,
+        mock_load_kw,
+        mock_load_kw_cat,
+        mock_cross_portal_dedup,
+        mock_robots_gate,
+    ):
+        """Portals blocked by robots.txt are skipped and not scraped."""
+        mock_conn = MagicMock()
+        mock_db_ctx.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db_ctx.return_value.__exit__ = MagicMock(return_value=False)
+
+        blocked_portal = PortalRecord(
+            id="p1",
+            name="BlockedPortal",
+            url="https://blocked.example.com/private/listings",
+            level="municipal",
+            language="en",
+            requires_login=False,
+            enabled=True,
+        )
+        allowed_portal = PortalRecord(
+            id="p2",
+            name="AllowedPortal",
+            url="https://allowed.example.com/opportunities",
+            level="municipal",
+            language="en",
+            requires_login=False,
+            enabled=True,
+        )
+        mock_get_portals.return_value = [blocked_portal, allowed_portal]
+        mock_process.return_value = {"found": 4, "new": 2, "updated": 2}
+
+        result = asyncio.get_event_loop().run_until_complete(run_pipeline())
+
+        mock_process.assert_called_once_with(
+            mock_conn,
+            allowed_portal,
+            keywords=["test"],
+            keywords_by_category={"Cat": {"EN": ["test"]}},
+            skip_embeddings=False,
+        )
+        assert result["BlockedPortal"]["skipped"] == "robots_txt_disallow"
+        assert result["AllowedPortal"]["found"] == 4
+        assert mock_robots_gate.call_count == 2
+        mock_cross_portal_dedup.assert_called_once_with(mock_conn)
+
+    @patch("scraper.pipeline.robots.urlopen", side_effect=TimeoutError("timeout"))
+    @patch(
+        "scraper.pipeline.orchestrator.deduplicate_cross_portal_listings",
+        return_value=0,
+    )
+    @patch("scraper.pipeline.orchestrator.load_keywords_by_category", return_value={"Cat": {"EN": ["test"]}})
+    @patch("scraper.pipeline.orchestrator.load_keywords", return_value=["test"])
+    @patch("scraper.pipeline.orchestrator.process_portal", new_callable=AsyncMock)
+    @patch("scraper.pipeline.orchestrator.get_enabled_portals")
+    @patch("scraper.pipeline.orchestrator.db_connection")
+    def test_run_pipeline_robots_check_error_fails_open(
+        self,
+        mock_db_ctx,
+        mock_get_portals,
+        mock_process,
+        mock_load_kw,
+        mock_load_kw_cat,
+        mock_cross_portal_dedup,
+        mock_urlopen,
+        caplog,
+    ):
+        """robots.txt fetch errors still allow processing (fail-open)."""
+        caplog.set_level("WARNING", logger="scraper.robots")
+
+        mock_conn = MagicMock()
+        mock_db_ctx.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db_ctx.return_value.__exit__ = MagicMock(return_value=False)
+
+        portal = PortalRecord(
+            id="p1",
+            name="FailOpenPortal",
+            url="https://fail-open.example.com/opportunities",
+            level="municipal",
+            language="en",
+            requires_login=False,
+            enabled=True,
+        )
+        mock_get_portals.return_value = [portal]
+        mock_process.return_value = {"found": 1, "new": 1, "updated": 0}
+
+        result = asyncio.get_event_loop().run_until_complete(run_pipeline())
+
+        mock_process.assert_called_once()
+        assert result["FailOpenPortal"]["found"] == 1
+        assert "Allowed due to robots.txt check error (fail-open)" in caplog.text
         mock_cross_portal_dedup.assert_called_once_with(mock_conn)
 
 
