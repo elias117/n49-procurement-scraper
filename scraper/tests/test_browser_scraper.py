@@ -32,6 +32,32 @@ def _make_mock_history(action_names_list=None, steps=3):
     return history
 
 
+def _make_mock_page(url="https://example.com/tenders", html="<html></html>"):
+    """Create a page mock with async browser methods and a sync url attr."""
+    page = MagicMock()
+    page.url = url
+    page.content = AsyncMock(return_value=html)
+    page.evaluate = AsyncMock(return_value=html)
+    page.goto = AsyncMock()
+    page.wait_for_timeout = AsyncMock()
+    return page
+
+
+def _make_mock_browser():
+    """Create a browser mock with async methods used by browser_scraper."""
+    browser = MagicMock()
+    browser.get_current_page = AsyncMock(return_value=None)
+    browser.kill = AsyncMock()
+    return browser
+
+
+def _make_mock_agent():
+    """Create an agent mock whose run method is awaitable."""
+    agent = MagicMock()
+    agent.run = AsyncMock()
+    return agent
+
+
 @pytest.fixture(autouse=True)
 def mock_browser_use_module():
     """Inject mock browser_use module so lazy import succeeds."""
@@ -126,18 +152,18 @@ class TestBrowserScrapeNoKeywords:
     ):
         from scraper.pipeline.browser_scraper import browser_scrape
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
         mock_extract.return_value = []
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -152,18 +178,18 @@ class TestBrowserScrapeNoKeywords:
     ):
         from scraper.pipeline.browser_scraper import browser_scrape, BrowserScrapeResult
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
         mock_extract.return_value = []
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -181,18 +207,18 @@ class TestBrowserScrapeNoKeywords:
         from scraper.pipeline.browser_scraper import browser_scrape
         from scraper import config
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
         mock_extract.return_value = []
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -207,18 +233,18 @@ class TestBrowserScrapeNoKeywords:
     ):
         from scraper.pipeline.browser_scraper import browser_scrape
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
         mock_extract.return_value = []
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -248,17 +274,17 @@ class TestBrowserScrapeKeywordSearch:
         mock_batch.return_value = ["translation", "interpreter"]
         mock_extract.return_value = []
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=5)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -284,17 +310,17 @@ class TestBrowserScrapeKeywordSearch:
         mock_batch.return_value = ["translation"]
         mock_extract.return_value = []
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=5)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -318,17 +344,17 @@ class TestBrowserScrapeKeywordSearch:
         mock_batch.return_value = ["translation"]
         mock_extract.return_value = []
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -354,18 +380,18 @@ class TestBrowserScrapeKeywordSearch:
         mock_batch.return_value = ["translation"]
         mock_extract.return_value = []
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         # History has input_text = search was detected
         mock_history = _make_mock_history(["go_to_url", "input_text", "click_element"], steps=5)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -395,17 +421,17 @@ class TestBrowserScrapeKeywordSearch:
             [listing1, listing2, listing3],
         ]
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -431,17 +457,17 @@ class TestBrowserScrapeKeywordSearch:
         mock_extract.return_value = [listing1, listing2]
         mock_dedup.return_value = [listing1]  # One duplicate removed
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -468,17 +494,17 @@ class TestBrowserScrapeKeywordSearch:
             mock_batch.return_value = ["translation"]
             mock_extract.return_value = []
 
-            mock_page = AsyncMock()
+            mock_page = _make_mock_page()
             mock_page.content.return_value = "<html></html>"
 
-            mock_browser_inst = AsyncMock()
+            mock_browser_inst = _make_mock_browser()
             mock_browser_inst.get_current_page.return_value = mock_page
             mock_browser_inst.kill = AsyncMock()
             mock_browser_use_module.Browser.return_value = mock_browser_inst
 
             # First search uses 12 steps, second would have only 3 remaining
             mock_history = _make_mock_history(["go_to_url", "input_text"], steps=12)
-            mock_agent_inst = AsyncMock()
+            mock_agent_inst = _make_mock_agent()
             mock_agent_inst.run.return_value = mock_history
             mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -510,17 +536,17 @@ class TestBrowserScrapeOrFallback:
         mock_batch.return_value = ["translation", "interpreter"]
         mock_extract.return_value = [ProcurementListing(title="Test", source_listing_id="T1")]
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=5)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -549,17 +575,17 @@ class TestBrowserScrapeOrFallback:
             [ProcurementListing(title="Found", source_listing_id="F1")],  # Single keyword
         ]
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=5)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -600,17 +626,17 @@ class TestBrowserScrapeOrFallback:
             [ProcurementListing(title="Cat2 single", source_listing_id="C2")],  # Cat2 single
         ]
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -641,18 +667,18 @@ class TestBrowserScrapeFallback:
         mock_batch.return_value = ["translation"]
         mock_extract.return_value = [ProcurementListing(title="Visible", source_listing_id="V1")]
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         # History has NO input_text = agent never found search form
         mock_history = _make_mock_history(["go_to_url", "click_element"], steps=5)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -674,17 +700,17 @@ class TestBrowserScrapeFallback:
         visible_listing = ProcurementListing(title="Visible", source_listing_id="V1")
         mock_extract.return_value = [visible_listing]
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url"], steps=5)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -714,17 +740,17 @@ class TestBrowserScrapeFallback:
             Exception("Page crashed"),  # Cat2 extract fails
         ]
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -749,18 +775,18 @@ class TestBrowserScrapeFallback:
 
         listing1 = ProcurementListing(title="Before crash", source_listing_id="BC1")
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://example.com/tenders"
         mock_page.content.return_value = "<html></html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
         mock_browser_inst.kill = AsyncMock()
         mock_browser_use_module.Browser.return_value = mock_browser_inst
 
         # Agent run succeeds for first search
         mock_history = _make_mock_history(["go_to_url", "input_text"], steps=3)
-        mock_agent_inst = AsyncMock()
+        mock_agent_inst = _make_mock_agent()
         mock_agent_inst.run.return_value = mock_history
         mock_browser_use_module.Agent.return_value = mock_agent_inst
 
@@ -944,14 +970,14 @@ class TestFixSourceUrls:
 class TestCurrentPageUrl:
     def test_uses_page_url_when_http(self):
         from scraper.pipeline.browser_scraper import _current_page_url
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://www.seao.ca/results"
         result = asyncio.get_event_loop().run_until_complete(_current_page_url(mock_page))
         assert result == "https://www.seao.ca/results"
 
     def test_ignores_non_http_page_url_and_uses_evaluated_url(self):
         from scraper.pipeline.browser_scraper import _current_page_url
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "about:blank"
         mock_page.evaluate.return_value = "https://www.seao.ca/detail/123?lang=fr"
         result = asyncio.get_event_loop().run_until_complete(_current_page_url(mock_page))
@@ -1027,10 +1053,10 @@ class TestEnrichWithDetails:
 
         mock_detail.return_value = full_listing
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.evaluate.return_value = "<html>detail page</html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
 
         portal = PortalRecord(
@@ -1068,7 +1094,7 @@ class TestEnrichWithDetails:
             requires_login=True, enabled=True,
         )
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
 
         result = asyncio.get_event_loop().run_until_complete(
             _enrich_with_details([full_listing], mock_browser_inst, portal)
@@ -1091,7 +1117,7 @@ class TestEnrichWithDetails:
             requires_login=True, enabled=True,
         )
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
 
         result = asyncio.get_event_loop().run_until_complete(
             _enrich_with_details([sparse_no_url], mock_browser_inst, portal)
@@ -1122,9 +1148,9 @@ class TestEnrichWithDetails:
                 title="Detail", description="Enriched"
             )
 
-            mock_page = AsyncMock()
+            mock_page = _make_mock_page()
             mock_page.evaluate.return_value = "<html>detail</html>"
-            mock_browser_inst = AsyncMock()
+            mock_browser_inst = _make_mock_browser()
             mock_browser_inst.get_current_page.return_value = mock_page
 
             portal = PortalRecord(
@@ -1156,9 +1182,9 @@ class TestEnrichWithDetails:
 
         mock_detail.return_value = None  # extraction failed
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.evaluate.return_value = "<html>detail page</html>"
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
 
         portal = PortalRecord(
@@ -1187,9 +1213,9 @@ class TestEnrichWithDetails:
             source_url="https://seao.ca/detail/123",
         )
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.goto.side_effect = Exception("Navigation failed")
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
 
         portal = PortalRecord(
@@ -1223,11 +1249,11 @@ class TestEnrichWithDetails:
             closing_date="2026-04-15",
         )
 
-        mock_page = AsyncMock()
+        mock_page = _make_mock_page()
         mock_page.url = "https://seao.ca/detail/123?lang=fr"
         mock_page.evaluate.return_value = "<html>detail page</html>"
 
-        mock_browser_inst = AsyncMock()
+        mock_browser_inst = _make_mock_browser()
         mock_browser_inst.get_current_page.return_value = mock_page
 
         portal = PortalRecord(
