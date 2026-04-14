@@ -55,11 +55,42 @@ jobs:
         run: python -m pytest scraper/tests/ api/tests/ db/tests/ -q --tb=short
 
   # ─────────────────────────────────────────────
-  # Job 2: Deploy to EC2
+  # Job 2: Validate frontend
+  # ─────────────────────────────────────────────
+  frontend:
+    name: Validate Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Run frontend lint
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build
+
+  # ─────────────────────────────────────────────
+  # Job 3: Deploy to EC2
   # ─────────────────────────────────────────────
   deploy:
     name: Deploy to EC2
-    needs: test
+    needs: [test, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.ref == 'refs/heads/main'
