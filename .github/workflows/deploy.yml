@@ -111,6 +111,8 @@ jobs:
           cd /opt/procurement-intel
 
           COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+          MAX_API_HEALTH_ATTEMPTS=12
+          API_HEALTH_RETRY_SECONDS=10
 
           echo "=== $(date '+%Y-%m-%d %H:%M:%S') Deployment starting ==="
 
@@ -138,29 +140,53 @@ jobs:
 
           # Run pending database migrations
           echo "Running database migrations..."
-          docker exec procurement-intel-api-1 \
-            python /app/db/migrate.py 2>&1 || {
-            echo "⚠️  Migration runner failed — check logs"
-            # Don't fail deploy; migrations may need manual intervention
-          }
+          if ! docker exec procurement-intel-api-1 python /app/db/migrate.py; then
+            echo "❌ Migration runner failed. Deployment aborted."
+            echo "Review API logs on EC2: $COMPOSE logs --tail=200 api"
+            exit 1
+          fi
+          echo "✅ Database migrations completed"
 
           # Wait for services to stabilize after migrations
           echo "Waiting for services to stabilize..."
           sleep 5
 
-          # Health check
+          # Health checks
           echo "Running health checks..."
           $COMPOSE ps
 
-          # Check API health endpoint
-          API_STATUS=$(docker exec procurement-intel-api-1 \
-            python -c "import httpx; r=httpx.get('http://localhost:8000/health'); print(r.status_code)" 2>/dev/null || echo "FAIL")
-          
-          if [ "$API_STATUS" = "200" ]; then
-            echo "✅ API health check passed"
-          else
-            echo "⚠️  API health check returned: $API_STATUS (may still be starting)"
-          fi
+          # Block until API container is running and /health returns 200.
+          attempt=1
+          while [ "$attempt" -le "$MAX_API_HEALTH_ATTEMPTS" ]; do
+            CONTAINER_STATE=$(docker inspect --format '{{.State.Status}}' procurement-intel-api-1 2>/dev/null || echo "missing")
+            CONTAINER_HEALTH=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' procurement-intel-api-1 2>/dev/null || echo "unknown")
+            API_STATUS=$(docker exec procurement-intel-api-1 \
+              python -c "import httpx; r=httpx.get('http://localhost:8000/health', timeout=5.0); print(r.status_code)" \
+              2>/tmp/api_health_error.log || echo "FAIL")
+
+            echo "API health attempt $attempt/$MAX_API_HEALTH_ATTEMPTS: container=$CONTAINER_STATE health=$CONTAINER_HEALTH status=$API_STATUS"
+
+            if [ "$CONTAINER_STATE" = "running" ] && [ "$API_STATUS" = "200" ]; then
+              echo "✅ API health verification passed"
+              break
+            fi
+
+            if [ "$attempt" -eq "$MAX_API_HEALTH_ATTEMPTS" ]; then
+              echo "❌ API health verification failed after $MAX_API_HEALTH_ATTEMPTS attempts"
+              if [ -s /tmp/api_health_error.log ]; then
+                echo "--- Last API health probe error ---"
+                tail -n 20 /tmp/api_health_error.log
+              fi
+              echo "--- docker compose ps ---"
+              $COMPOSE ps
+              echo "--- API logs (tail 120) ---"
+              $COMPOSE logs --tail=120 api || true
+              exit 1
+            fi
+
+            sleep "$API_HEALTH_RETRY_SECONDS"
+            attempt=$((attempt + 1))
+          done
 
           # Prune old images
           docker image prune -f
@@ -170,14 +196,37 @@ jobs:
 
       - name: Verify deployment
         run: |
-          # Quick smoke test — hit the public HTTPS endpoint
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            --max-time 15 \
-            "https://procurement.eliastools.com" 2>/dev/null || echo "000")
+          MAX_PUBLIC_HEALTH_ATTEMPTS=12
+          PUBLIC_HEALTH_RETRY_SECONDS=10
+          TARGET_URL="https://procurement.eliastools.com"
 
-          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "302" ]; then
-            echo "✅ Site is responding (HTTP $HTTP_CODE)"
-          else
-            echo "⚠️  Site returned HTTP $HTTP_CODE — may need investigation"
-            # Don't fail the job — container restart timing can cause brief 502s
-          fi
+          attempt=1
+          while [ "$attempt" -le "$MAX_PUBLIC_HEALTH_ATTEMPTS" ]; do
+            HTTP_CODE=$(curl -sS -o /tmp/public_smoke_response.txt -w "%{http_code}" \
+              --max-time 15 \
+              "$TARGET_URL" 2>/tmp/public_smoke_error.log || echo "000")
+
+            echo "Public smoke attempt $attempt/$MAX_PUBLIC_HEALTH_ATTEMPTS: HTTP $HTTP_CODE"
+
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "302" ]; then
+              echo "✅ Public endpoint is responding (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+
+            if [ "$attempt" -eq "$MAX_PUBLIC_HEALTH_ATTEMPTS" ]; then
+              echo "❌ Public smoke test failed after $MAX_PUBLIC_HEALTH_ATTEMPTS attempts"
+              if [ -s /tmp/public_smoke_error.log ]; then
+                echo "--- Last curl error ---"
+                cat /tmp/public_smoke_error.log
+              fi
+              if [ -s /tmp/public_smoke_response.txt ]; then
+                echo "--- Response body preview (first 300 bytes) ---"
+                head -c 300 /tmp/public_smoke_response.txt
+                echo
+              fi
+              exit 1
+            fi
+
+            sleep "$PUBLIC_HEALTH_RETRY_SECONDS"
+            attempt=$((attempt + 1))
+          done

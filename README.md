@@ -134,6 +134,14 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 CI/CD is handled by `.github/workflows/deploy.yml` — pushes to main trigger tests, then SSH deploy to EC2.
 
+The deploy job is fail-fast by design:
+
+- Database migrations must succeed or the deployment job fails immediately.
+- Post-deploy API verification blocks until the API container is running and `http://localhost:8000/health` returns `200` (max `12` attempts, `10s` apart).
+- Public smoke verification blocks on `https://procurement.eliastools.com` returning `200/301/302` (max `12` attempts, `10s` apart).
+
+On failure, the workflow prints actionable diagnostics (attempt counts, last probe errors, and API log tails) and exits non-zero.
+
 ## License
 
 Private — n49 Systems.
