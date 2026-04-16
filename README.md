@@ -134,6 +134,16 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 CI/CD is handled by `.github/workflows/deploy.yml` — pushes to main trigger tests, then SSH deploy to EC2.
 
+Deploys are fail-fast in production:
+
+- Database migrations are blocking. If `python /app/db/migrate.py` fails, the deploy job fails immediately.
+- The in-container API health endpoint (`http://localhost:8000/health`) must return `200` within 12 attempts (5s between attempts) or the deploy job fails.
+- The public smoke test (`https://procurement.eliastools.com`) must return `200`, `301`, or `302` within 10 attempts (6s between attempts) or the deploy job fails.
+
+`301/302` are accepted for the public smoke test because production may validly redirect to a canonical URL/path during normal operation. Other status codes (or repeated connection failures) are treated as unhealthy.
+
+On failure, the workflow prints actionable diagnostics (API container logs, container status, and last public response headers/body snippet).
+
 ## License
 
 Private — n49 Systems.
