@@ -1,0 +1,92 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workflow_yaml_sanity:
+    name: Workflow and YAML Sanity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint workflow files
+        uses: rhysd/actionlint@v1
+
+      - name: Set up Python for yamllint
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint repository YAML
+        run: |
+          yamllint \
+            -d "{extends: default, rules: {document-start: disable, line-length: disable, truthy: disable, trailing-spaces: disable}}" \
+            .github/workflows \
+            docker-compose.yml \
+            docker-compose.prod.yml
+
+  python_tests:
+    name: Python Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install scraper dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Install API dependencies
+        run: pip install -r api/requirements.txt
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost/dummy
+          OPENAI_API_KEY: sk-test-dummy
+        run: python -m pytest scraper/tests/ api/tests/ db/tests/ -q --tb=short
+
+  web_lint_build:
+    name: Web Lint and Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci --prefix web
+
+      - name: Run web lint
+        run: npm --prefix web run lint
+
+      - name: Run web build
+        run: npm --prefix web run build

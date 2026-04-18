@@ -36,7 +36,7 @@ Before each portal scrape, the orchestrator checks the portal's `robots.txt` usi
 | Web | Next.js 14, React, TypeScript, Tailwind CSS, shadcn/ui |
 | Database | PostgreSQL 17 + pgvector |
 | Proxy | Nginx (TLS termination, Let's Encrypt) |
-| CI/CD | GitHub Actions (test → deploy to EC2 via SSH) |
+| CI/CD | GitHub Actions (PR validation + main test → deploy to EC2 via SSH) |
 | Hosting | AWS EC2 (ca-central-1), Docker Compose |
 
 ## Quick Start
@@ -122,7 +122,7 @@ python -m pytest scraper/tests/ api/tests/ -q
 python -m pytest scraper/tests/ api/tests/ --cov=scraper --cov=api
 ```
 
-CI runs tests automatically on every push to main before deploying.
+CI runs pull-request validation checks (workflow/YAML sanity, Python tests, and web lint/build) on every PR to `main`. Pushes to `main` still run deploy-gated tests before shipping to EC2.
 
 ## Deployment
 
@@ -132,7 +132,10 @@ Production runs on AWS EC2 (ca-central-1) via Docker Compose with the prod overl
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-CI/CD is handled by `.github/workflows/deploy.yml` — pushes to main trigger tests, then SSH deploy to EC2.
+CI/CD is handled by:
+
+- `.github/workflows/pr-validation.yml` — PR checks only (no deployment)
+- `.github/workflows/deploy.yml` — pushes to `main` trigger tests, then SSH deploy to EC2
 
 ## License
 
