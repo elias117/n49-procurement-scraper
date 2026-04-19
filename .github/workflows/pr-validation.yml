@@ -28,10 +28,12 @@ jobs:
           cache: false
 
       - name: Install actionlint
-        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Lint workflow files
-        run: $(go env GOPATH)/bin/actionlint
+        run: actionlint
 
       - name: Set up Python for yamllint
         uses: actions/setup-python@v5
