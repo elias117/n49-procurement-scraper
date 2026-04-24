@@ -55,11 +55,42 @@ jobs:
         run: python -m pytest scraper/tests/ api/tests/ db/tests/ -q --tb=short
 
   # ─────────────────────────────────────────────
-  # Job 2: Deploy to EC2
+  # Job 2: Validate frontend
+  # ─────────────────────────────────────────────
+  frontend:
+    name: Validate Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Run frontend lint
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build
+
+  # ─────────────────────────────────────────────
+  # Job 3: Deploy to EC2
   # ─────────────────────────────────────────────
   deploy:
     name: Deploy to EC2
-    needs: test
+    needs: [test, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.ref == 'refs/heads/main'
@@ -136,31 +167,67 @@ jobs:
           echo "Waiting for database..."
           sleep 5
 
-          # Run pending database migrations
-          echo "Running database migrations..."
-          docker exec procurement-intel-api-1 \
-            python /app/db/migrate.py 2>&1 || {
-            echo "⚠️  Migration runner failed — check logs"
-            # Don't fail deploy; migrations may need manual intervention
-          }
+          # Run pending database migrations (blocking)
+          echo "Running database migrations (blocking)..."
+          set +e
+          MIGRATION_OUTPUT=$($COMPOSE exec -T api python /app/db/migrate.py 2>&1)
+          MIGRATION_EXIT=$?
+          set -e
+          echo "$MIGRATION_OUTPUT"
+
+          if [ "$MIGRATION_EXIT" -ne 0 ]; then
+            echo "::error::Migration runner failed with exit code $MIGRATION_EXIT"
+            echo "Recent API logs (last 120 lines):"
+            $COMPOSE logs --tail=120 api || true
+            exit 1
+          fi
 
           # Wait for services to stabilize after migrations
           echo "Waiting for services to stabilize..."
           sleep 5
 
-          # Health check
-          echo "Running health checks..."
+          # In-container API health check (blocking, bounded retries)
+          echo "Running in-container API health checks..."
           $COMPOSE ps
 
-          # Check API health endpoint
-          API_STATUS=$(docker exec procurement-intel-api-1 \
-            python -c "import httpx; r=httpx.get('http://localhost:8000/health'); print(r.status_code)" 2>/dev/null || echo "FAIL")
-          
-          if [ "$API_STATUS" = "200" ]; then
-            echo "✅ API health check passed"
-          else
-            echo "⚠️  API health check returned: $API_STATUS (may still be starting)"
+          API_MAX_ATTEMPTS=12
+          API_RETRY_SLEEP_SECONDS=5
+          API_HEALTHY=0
+
+          for ATTEMPT in $(seq 1 "$API_MAX_ATTEMPTS"); do
+            echo "API health attempt ${ATTEMPT}/${API_MAX_ATTEMPTS}"
+
+            set +e
+            API_OUTPUT=$($COMPOSE exec -T api \
+              python -c "import httpx; r=httpx.get('http://localhost:8000/health', timeout=5.0); print(r.status_code)" \
+              2>&1)
+            API_EXIT=$?
+            set -e
+
+            API_STATUS=$(printf '%s\n' "$API_OUTPUT" | tail -n 1 | tr -d '\r')
+            echo "API health result: exit=${API_EXIT}, status=${API_STATUS}"
+
+            if [ "$API_EXIT" -eq 0 ] && [ "$API_STATUS" = "200" ]; then
+              API_HEALTHY=1
+              break
+            fi
+
+            if [ "$ATTEMPT" -lt "$API_MAX_ATTEMPTS" ]; then
+              echo "Retrying API health in ${API_RETRY_SLEEP_SECONDS}s..."
+              sleep "$API_RETRY_SLEEP_SECONDS"
+            fi
+          done
+
+          if [ "$API_HEALTHY" -ne 1 ]; then
+            echo "::error::API health check failed after ${API_MAX_ATTEMPTS} attempts."
+            echo "Container status:"
+            $COMPOSE ps
+            echo "Recent API logs (last 120 lines):"
+            $COMPOSE logs --tail=120 api || true
+            exit 1
           fi
+
+          echo "✅ API health check passed"
 
           # Prune old images
           docker image prune -f
@@ -170,14 +237,71 @@ jobs:
 
       - name: Verify deployment
         run: |
-          # Quick smoke test — hit the public HTTPS endpoint
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            --max-time 15 \
-            "https://procurement.eliastools.com" 2>/dev/null || echo "000")
+          set -euo pipefail
 
-          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "302" ]; then
-            echo "✅ Site is responding (HTTP $HTTP_CODE)"
-          else
-            echo "⚠️  Site returned HTTP $HTTP_CODE — may need investigation"
-            # Don't fail the job — container restart timing can cause brief 502s
+          # Blocking public smoke test with bounded retries.
+          PUBLIC_URL="https://procurement.eliastools.com"
+          PUBLIC_MAX_ATTEMPTS=10
+          PUBLIC_RETRY_SLEEP_SECONDS=6
+          PUBLIC_HEALTHY=0
+
+          for ATTEMPT in $(seq 1 "$PUBLIC_MAX_ATTEMPTS"); do
+            echo "Public smoke test attempt ${ATTEMPT}/${PUBLIC_MAX_ATTEMPTS}: ${PUBLIC_URL}"
+
+            set +e
+            HTTP_CODE=$(curl -sS \
+              --connect-timeout 5 \
+              --max-time 15 \
+              -D /tmp/public-health-headers.txt \
+              -o /tmp/public-health-body.txt \
+              -w "%{http_code}" \
+              "${PUBLIC_URL}" 2>/tmp/public-health-curl-error.log)
+            CURL_EXIT=$?
+            set -e
+
+            if [ "$CURL_EXIT" -ne 0 ]; then
+              HTTP_CODE="000"
+            fi
+
+            echo "Public smoke test result: curl_exit=${CURL_EXIT}, http_code=${HTTP_CODE}"
+
+            if [ "$CURL_EXIT" -eq 0 ] && { [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "302" ]; }; then
+              PUBLIC_HEALTHY=1
+              break
+            fi
+
+            if [ -s /tmp/public-health-curl-error.log ]; then
+              echo "curl error output:"
+              cat /tmp/public-health-curl-error.log
+            fi
+
+            if [ -s /tmp/public-health-headers.txt ]; then
+              echo "Last response headers:"
+              sed -n '1,20p' /tmp/public-health-headers.txt
+            fi
+
+            if [ "$ATTEMPT" -lt "$PUBLIC_MAX_ATTEMPTS" ]; then
+              echo "Retrying public smoke test in ${PUBLIC_RETRY_SLEEP_SECONDS}s..."
+              sleep "$PUBLIC_RETRY_SLEEP_SECONDS"
+            fi
+          done
+
+          if [ "$PUBLIC_HEALTHY" -ne 1 ]; then
+            echo "::error::Public smoke test failed after ${PUBLIC_MAX_ATTEMPTS} attempts."
+            if [ -s /tmp/public-health-curl-error.log ]; then
+              echo "Final curl error output:"
+              cat /tmp/public-health-curl-error.log
+            fi
+            if [ -s /tmp/public-health-headers.txt ]; then
+              echo "Final response headers:"
+              sed -n '1,40p' /tmp/public-health-headers.txt
+            fi
+            if [ -s /tmp/public-health-body.txt ]; then
+              echo "Final response body (first 400 chars):"
+              head -c 400 /tmp/public-health-body.txt
+              echo
+            fi
+            exit 1
           fi
+
+          echo "✅ Public smoke test passed (HTTP ${HTTP_CODE})"
